@@ -231,64 +231,49 @@ async function fetchElevations(pts){
 // ── Climb detection ───────────────────────────────────────────────────────────
 function detectClimbs(pts, dists){
   const n = pts.length;
-  const hasEle = pts.some(p=>p[2]!=null);
-  if(!hasEle) return [];
+  if(!pts.some(p=>p[2]!=null)) return [];
 
-  // Median smooth elevation
+  // Moyenne glissante sur 200m (distance-based).
+  // Le médian par nb de points crée des paliers artificiels qui font rater les départs de montée.
   const raw = pts.map(p=>p[2]??0);
-  const W=5, es=[];
+  const SMOOTH = 200;
+  const es = new Array(n);
   for(let i=0;i<n;i++){
-    const s=[...raw.slice(Math.max(0,i-W),i+W+1)].sort((a,b)=>a-b);
-    es.push(s[Math.floor(s.length/2)]);
+    let sum=0,cnt=0;
+    for(let j=i;j>=0&&dists[i]-dists[j]<=SMOOTH;j--){sum+=raw[j];cnt++;}
+    for(let j=i+1;j<n&&dists[j]-dists[i]<=SMOOTH;j++){sum+=raw[j];cnt++;}
+    es[i]=cnt?sum/cnt:raw[i];
   }
 
-  // Precompute local grade over 500m ahead (for plateau detection)
-  const lg=[];
-  for(let i=0;i<n;i++){
-    const target=dists[i]+500; let j=i;
-    while(j<n-1&&dists[j]<target) j++;
-    const d=dists[j]-dists[i],e=es[j]-es[i];
-    lg.push(d>50?e/d:0);
-  }
-
-  const MIN_GAIN_BIG    = 100;   // D+ >= 100m → montée certaine même si pente douce
-  const MIN_GAIN_SMALL  = 30;    // D+ >= 30m + pente >= 3% → montée courte et raide
-  const MIN_GRADE_SMALL = 0.03;
-  const PLATEAU_GRADE   = 0.015; // < 1.5% = faux plat ou plateau
-  const PLATEAU_MIN_M   = 800;   // plateau doit durer > 800m pour être tronqué
+  // Seuils calibrés sur sorties officielles Bryton 460
+  const MIN_LEN   = 500;   // m
+  const MIN_GAIN  = 25;    // m D+
+  const MIN_GRADE = 0.022; // 2.2%
 
   const all=[];
   let i=0;
   while(i<n-2){
     if(es[i+1]<=es[i]){i++;continue;}
     const si=i;
-    let peak=es[i], pi=i;
-    let j=i+1;
+    let peak=es[i],pi=i,j=i+1;
     while(j<n){
       if(es[j]>peak){peak=es[j];pi=j;}
-      const peakDrop=Math.max(10,Math.min(80,(peak-es[si])*0.25));
-      if(peak-es[j]>=peakDrop)break;
+      // Tolérance de descente : 30% du gain actuel, min 15m, max 100m
+      const drop=Math.max(15,Math.min(100,(peak-es[si])*0.30));
+      if(peak-es[j]>=drop) break;
       j++;
     }
-    // Tronquer le plateau final : trouver le dernier point encore en montée
-    let lastClimbing=si;
-    for(let k=si;k<=pi;k++) if(lg[k]>=PLATEAU_GRADE) lastClimbing=k;
-    const plateauLen=dists[pi]-dists[lastClimbing];
-    const ei=plateauLen>=PLATEAU_MIN_M ? lastClimbing : pi;
-
-    const gain=es[ei]-es[si];
-    const len=dists[ei]-dists[si];
+    const gain=es[pi]-es[si];
+    const len=dists[pi]-dists[si];
     if(len<10){i=pi+1;continue;}
     const grade=gain/len;
-    const qualifies=(gain>=MIN_GAIN_BIG&&len>200)||
-                    (gain>=MIN_GAIN_SMALL&&len>50&&grade>=MIN_GRADE_SMALL);
-    if(qualifies){
-      all.push({start:dists[si], length:len, gain, grade, startPt:si, endPt:ei});
+    if(gain>=MIN_GAIN&&len>=MIN_LEN&&grade>=MIN_GRADE){
+      all.push({start:dists[si],length:len,gain,grade,startPt:si,endPt:pi});
     }
     i=pi+1;
   }
-  // top 5 by gain, sorted by position
-  all.sort((a,b)=>b.gain-a.gain);
+  // Score : grade × D+ (valorise autant la pente que l'effort), top 5, tri par position
+  all.sort((a,b)=>(b.grade*b.gain)-(a.grade*a.gain));
   return all.slice(0,5).sort((a,b)=>a.start-b.start);
 }
 
@@ -371,7 +356,7 @@ function encodeSmy(pts,climbs){
   v.setInt32(16,Math.round(Math.min(...lons)*1e6),true);
   v.setInt32(20,Math.round(totalDist(pts)),true);
   v.setInt32(60,up,true);
-  v.setInt32(64,dn,true);
+  // D- laissé à 0 : l'appli officielle Bryton ne remplit pas ce champ
   return buf;
 }
 
