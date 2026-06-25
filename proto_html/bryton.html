@@ -139,6 +139,7 @@ h1{font-size:1.1rem;font-weight:600;letter-spacing:.15em;text-transform:uppercas
   </div>
 
   <button class="btn" id="convertBtn" disabled>Convertir</button>
+  <div id="juncStatus" style="font-size:.72rem;color:var(--muted);margin-top:7px;min-height:1.2em;"></div>
 </div>
 
 <div class="card output-section" id="outputCard">
@@ -377,60 +378,107 @@ function encodeTinfo(climbs){
   return buf;
 }
 
-function encodeJunc(pts, dists){
-  // Detect significant turns from the GPX track
-  // and encode only those as junctions with bearing info
+// ── OSM Overpass : récupérer les intersections le long de la trace ────────────
+async function fetchOSMJunctions(pts){
+  const n = pts.length;
+  // Sous-échantillonner la trace (max 300 points) pour garder la requête Overpass légère
+  const step = Math.max(1, Math.ceil(n / 300));
+  const sampled = [];
+  for(let i=0; i<n; i+=step) sampled.push(pts[i]);
+  if(sampled[sampled.length-1] !== pts[n-1]) sampled.push(pts[n-1]);
+
+  const coords = sampled.map(p=>`${p[0].toFixed(6)},${p[1].toFixed(6)}`).join(',');
+  const query =
+`[out:json][timeout:60];
+(
+  way["highway"~"^(motorway|motorway_link|trunk|trunk_link|primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|residential|unclassified|road|living_street)$"](around:25,${coords});
+)->.ways;
+node(w.ways)->.allnodes;
+.ways out body;
+.allnodes out skel;`;
+
+  const resp = await fetch('https://overpass-api.de/api/interpreter', {
+    method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:'data='+encodeURIComponent(query),
+    signal:AbortSignal.timeout(60000)
+  });
+  if(!resp.ok) throw new Error('Overpass HTTP '+resp.status);
+  const data = await resp.json();
+
+  // Compter combien de ways référencent chaque nœud → intersections = count >= 2
+  const nodePos={}, nodeWays={};
+  for(const el of data.elements){
+    if(el.type==='node') nodePos[el.id]=[el.lat,el.lon];
+    if(el.type==='way'&&el.nodes) for(const id of el.nodes) nodeWays[id]=(nodeWays[id]||0)+1;
+  }
+  return Object.keys(nodeWays)
+    .filter(id=>nodeWays[id]>=2&&nodePos[id])
+    .map(id=>({lat:nodePos[id][0],lon:nodePos[id][1]}));
+}
+
+// ── Encodage junctions ────────────────────────────────────────────────────────
+// junctions = [{lat,lon}] depuis OSM ou null → fallback détection par angle
+function encodeJunc(junctions, pts, dists){
   const n = pts.length;
 
-  // Smooth bearing: heading from ~50m before to ~50m after point i
-  function smoothBearing(i){
-    const WM = 50;
-    let before=i; while(before>0 && dists[i]-dists[before]<WM) before--;
-    let after=i;  while(after<n-1 && dists[after]-dists[i]<WM) after++;
-    const lat1=pts[before][0],lon1=pts[before][1];
-    const lat2=pts[after][0], lon2=pts[after][1];
-    const phi1=lat1*Math.PI/180, phi2=lat2*Math.PI/180;
-    const dl=(lon2-lon1)*Math.PI/180;
+  // Cap azimut au point i (fenêtre ~50m)
+  function bearingAt(i){
+    const WM=50;
+    let a=i; while(a>0&&dists[i]-dists[a]<WM) a--;
+    let b=i; while(b<n-1&&dists[b]-dists[i]<WM) b++;
+    const phi1=pts[a][0]*Math.PI/180, phi2=pts[b][0]*Math.PI/180;
+    const dl=(pts[b][1]-pts[a][1])*Math.PI/180;
     const x=Math.sin(dl)*Math.cos(phi2);
     const y=Math.cos(phi1)*Math.sin(phi2)-Math.sin(phi1)*Math.cos(phi2)*Math.cos(dl);
     return (Math.atan2(x,y)*180/Math.PI+360)%360;
   }
 
-  const TURN_THRESH = 25;   // degrees to qualify as a turn
-  const MIN_GAP_M  = 100;   // min distance between two turns
-
-  const turns = [];   // {ptIdx, lat, lon, bearOut}
-  let lastDist = -999;
-  // Precompute headings (step every ~5 points for speed)
-  for(let i=10; i<n-10; i++){
-    if(dists[i]-lastDist < MIN_GAP_M) continue;
-    const hBefore = smoothBearing(Math.max(0,i-5));
-    const hAfter  = smoothBearing(Math.min(n-1,i+5));
-    const turn = ((hAfter-hBefore+180)%360)-180;
-    if(Math.abs(turn) >= TURN_THRESH){
-      turns.push({ptIdx:i, lat:pts[i][0], lon:pts[i][1], bearOut:hAfter});
-      lastDist = dists[i];
+  // Fallback : détection par seuil d'angle si pas de données OSM
+  if(!junctions){
+    const turns=[];
+    let lastDist=-999;
+    for(let i=10;i<n-10;i++){
+      if(dists[i]-lastDist<100) continue;
+      const hB=bearingAt(Math.max(0,i-5)), hA=bearingAt(Math.min(n-1,i+5));
+      if(Math.abs(((hA-hB+180)%360)-180)>=25){
+        turns.push({lat:pts[i][0],lon:pts[i][1],ptIdx:i,bear:hA});
+        lastDist=dists[i];
+      }
     }
+    junctions=turns.map(t=>({lat:t.lat,lon:t.lon,_ptIdx:t.ptIdx,_bear:t.bear}));
   }
 
-  // Add sentinel (0xFFFFFFFF) at end like real Bryton format
-  const nRec = turns.length + 1;
-  const buf = new ArrayBuffer(nRec*12), v = new DataView(buf);
-  for(let i=0;i<turns.length;i++){
-    const t = turns[i];
-    v.setInt32(i*12,   Math.round(t.lat*1e6), true);
-    v.setInt32(i*12+4, Math.round(t.lon*1e6), true);
-    // extra: uint8(ptIdx_lo) uint8(ptIdx_hi) uint8(b10=1) uint8(b11=bearOut/2)
-    v.setUint8(i*12+8,  t.ptIdx & 0xFF);
-    v.setUint8(i*12+9,  (t.ptIdx >> 8) & 0xFF);
-    v.setUint8(i*12+10, 1);   // b10=1: on-route junction
-    v.setUint8(i*12+11, Math.round(t.bearOut/2) & 0xFF);  // bearing /2 → 0-179
+  // Trouver le point de trace le plus proche pour chaque intersection OSM
+  function nearestPt(lat,lon){
+    let best=0, bestD=Infinity;
+    for(let i=0;i<n;i++){
+      const d=Math.abs(pts[i][0]-lat)+Math.abs(pts[i][1]-lon);
+      if(d<bestD){bestD=d;best=i;}
+    }
+    return best;
   }
-  // Sentinel
-  v.setUint32((nRec-1)*12,   0xFFFFFFFF, true);
-  v.setUint32((nRec-1)*12+4, 0xFFFFFFFF, true);
-  v.setUint32((nRec-1)*12+8, 0xFFFFFFFF, true);
 
+  // Construire et dédupliquer les records (1 seul par ptIdx)
+  const recs=junctions.map(j=>{
+    const ptIdx=j._ptIdx??nearestPt(j.lat,j.lon);
+    return{lat:j.lat,lon:j.lon,ptIdx,bear:j._bear??bearingAt(ptIdx)};
+  });
+  recs.sort((a,b)=>a.ptIdx-b.ptIdx);
+  const deduped=[];
+  let lastPt=-1;
+  for(const r of recs){if(r.ptIdx!==lastPt){deduped.push(r);lastPt=r.ptIdx;}}
+
+  const buf=new ArrayBuffer(deduped.length*12), v=new DataView(buf);
+  for(let i=0;i<deduped.length;i++){
+    const r=deduped[i];
+    v.setInt32(i*12,   Math.round(r.lat*1e6),true);
+    v.setInt32(i*12+4, Math.round(r.lon*1e6),true);
+    v.setUint8(i*12+8,  r.ptIdx&0xFF);
+    v.setUint8(i*12+9, (r.ptIdx>>8)&0xFF);
+    v.setUint8(i*12+10, 1);
+    v.setUint8(i*12+11, Math.round(r.bear/360*256)&0xFF);
+  }
   return buf;
 }
 
@@ -650,9 +698,20 @@ $('convertBtn').addEventListener('click',async()=>{
   const trackBuf  = encodeTrack(pts, grades);
   const smyBuf    = encodeSmy(pts,climbs);
   const tinfoBuf  = encodeTinfo(climbs);
-  const juncBuf   = encodeJunc(pts, dists);
   const pathBuf   = encodeSortPath(pts);
   const climbBuf  = encodeClimb(climbs);
+
+  // Intersections OSM via Overpass (fallback angle-based si indisponible)
+  $('juncStatus').textContent='⏳ Récupération intersections OSM…';
+  let osmJunctions=null;
+  try{
+    osmJunctions=await fetchOSMJunctions(pts);
+    $('juncStatus').textContent=`✓ ${osmJunctions.length} intersections OSM`;
+  }catch(e){
+    $('juncStatus').textContent='⚠ Overpass indisponible — détection locale';
+    console.warn('Overpass fetch failed:',e.message);
+  }
+  const juncBuf = encodeJunc(osmJunctions, pts, dists);
 
   generatedFiles = {
     [name+'.smy']:   smyBuf,
@@ -686,7 +745,7 @@ $('convertBtn').addEventListener('click',async()=>{
 <br><span class="file">  ├ ${name}.track</span><span class="fsize">${fmt(trackBuf.byteLength)} · ${pts.length.toLocaleString('fr')} pts · ${distKm} km${eleStr}</span>
 <br><span class="dir">  └ 📁 ${name}\</span>
 <br><span class="file">        ├ dupli.track</span><span class="fsize">${fmt(trackBuf.byteLength)}</span>
-<br><span class="file">        ├ list.junc</span><span class="fsize">${fmt(juncBuf.byteLength)} · ${Math.floor(juncBuf.byteLength/12)-1} virages</span>
+<br><span class="file">        ├ list.junc</span><span class="fsize">${fmt(juncBuf.byteLength)} · ${Math.floor(juncBuf.byteLength/12)} intersections</span>
 <br><span class="file">        ├ list2.junc</span><span class="fsize">${fmt(juncBuf.byteLength)}</span>
 <br><span class="file">        ├ ${name}.climb</span><span class="fsize">${fmt(climbBuf.byteLength)}${climbs.length?' · '+climbs.length+' ascension(s)':' · vide'}</span>
 <br><span class="file">        └ sort1.path</span><span class="fsize">${fmt(pathBuf.byteLength)}</span>`;
