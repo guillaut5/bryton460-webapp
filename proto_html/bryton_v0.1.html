@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GPX → Bryton 460</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{--bg:#0f1117;--surface:#1a1d27;--border:#2a2d3a;--accent:#00d4aa;--accent2:#ff6b35;--text:#e8eaf0;--muted:#6b7080;--mono:'Courier New',monospace;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:40px 20px;}
+h1{font-size:1.1rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--accent);margin-bottom:4px;}
+.subtitle{font-size:.78rem;color:var(--muted);letter-spacing:.05em;margin-bottom:32px;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:24px;width:100%;max-width:580px;margin-bottom:14px;}
+.stitle{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;}
+.drop-zone{border:2px dashed var(--border);border-radius:6px;padding:36px 20px;text-align:center;cursor:pointer;transition:.2s;position:relative;}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--accent);background:rgba(0,212,170,.05);}
+.drop-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.drop-icon{font-size:2rem;margin-bottom:8px;display:block;}
+.drop-label{font-size:.9rem;margin-bottom:4px;}
+.drop-hint{font-size:.72rem;color:var(--muted);}
+.stats{display:none;margin-top:16px;padding:14px;background:rgba(0,212,170,.06);border:1px solid rgba(0,212,170,.2);border-radius:6px;font-size:.8rem;}
+.stats.visible{display:block;}
+.stat-row{display:flex;justify-content:space-between;margin-bottom:5px;}
+.stat-row:last-child{margin-bottom:0;}
+.sk{color:var(--muted);}
+.sv{color:var(--accent);font-family:var(--mono);}
+.sv.warn{color:var(--accent2);}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px;}
+.opt label{display:block;font-size:.72rem;color:var(--muted);margin-bottom:4px;}
+.opt input[type=number],.opt input[type=text]{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:7px 9px;font-size:.82rem;font-family:var(--mono);}
+.opt input:focus{outline:none;border-color:var(--accent);}
+.simp-block{margin-bottom:16px;}
+.simp-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.simp-header label{font-size:.75rem;color:var(--muted);}
+.toggle-group{display:flex;gap:6px;}
+.tgl{padding:4px 12px;border:1px solid var(--border);border-radius:4px;font-size:.75rem;cursor:pointer;color:var(--muted);background:transparent;transition:.15s;}
+.tgl.active{border-color:var(--accent);color:var(--accent);background:rgba(0,212,170,.08);}
+.simp-detail{display:none;margin-top:10px;}
+.simp-detail.visible{display:block;}
+.slider-row{display:flex;align-items:center;gap:10px;}
+.slider-row label{font-size:.72rem;color:var(--muted);flex:1;}
+.slider-row input[type=range]{flex:2;accent-color:var(--accent);}
+.sv2{font-family:var(--mono);font-size:.78rem;color:var(--accent);width:60px;text-align:right;}
+.preview-bar{height:4px;background:var(--border);border-radius:2px;margin-top:12px;overflow:hidden;}
+.preview-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .3s;}
+.preview-label{font-size:.7rem;color:var(--muted);margin-top:5px;}
+.btn{display:block;width:100%;padding:11px;background:var(--accent);color:#0f1117;border:none;border-radius:5px;font-size:.88rem;font-weight:700;cursor:pointer;letter-spacing:.04em;transition:.15s;}
+.btn:disabled{opacity:.3;cursor:default;}
+.btn:not(:disabled):hover{opacity:.86;}
+.btn.secondary{background:transparent;color:var(--accent);border:1px solid var(--accent);margin-top:8px;font-weight:600;}
+.output-section{display:none;}
+.output-section.visible{display:block;}
+.file-tree{font-family:var(--mono);font-size:.78rem;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:14px 16px;margin-bottom:14px;line-height:2.1;}
+.file-tree .dir{color:var(--muted);}
+.file-tree .file{color:var(--accent);}
+.file-tree .fsize{color:var(--muted);font-size:.7rem;margin-left:8px;}
+.climb-list{margin-top:10px;font-size:.75rem;}
+.climb-item{display:flex;gap:12px;padding:5px 8px;border-left:2px solid var(--accent2);margin-bottom:4px;background:rgba(255,107,53,.04);}
+.climb-item span{color:var(--muted);}
+.climb-item strong{color:var(--text);}
+.notice{font-size:.74rem;color:var(--muted);line-height:1.65;padding:12px 14px;border-left:2px solid var(--accent2);background:rgba(255,107,53,.04);border-radius:0 4px 4px 0;}
+.notice strong{color:var(--accent2);}
+.notice code{font-family:var(--mono);color:var(--text);background:rgba(255,255,255,.06);padding:1px 4px;border-radius:3px;}
+.transfer-section{margin-top:14px;}
+.transfer-btn{background:rgba(0,212,170,.1);border:1px solid var(--accent);color:var(--accent);border-radius:5px;padding:10px 16px;font-size:.85rem;font-weight:600;cursor:pointer;width:100%;transition:.15s;display:flex;align-items:center;justify-content:center;gap:8px;}
+.transfer-btn:hover{background:rgba(0,212,170,.18);}
+.transfer-btn:disabled{opacity:.4;cursor:default;}
+.transfer-status{font-size:.75rem;margin-top:8px;padding:8px 12px;border-radius:4px;display:none;}
+.transfer-status.ok{display:block;background:rgba(0,212,170,.1);border:1px solid rgba(0,212,170,.3);color:var(--accent);}
+.transfer-status.err{display:block;background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.25);color:#ff6b6b;}
+.error{font-size:.78rem;color:#ff6b6b;padding:9px 12px;background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.25);border-radius:4px;margin-top:10px;display:none;}
+.error.visible{display:block;}
+</style>
+</head>
+<body>
+<h1>GPX → Bryton 460</h1>
+<p class="subtitle">Format natif complet · élévation · D+ · D− · ascensions</p>
+
+<div class="card">
+  <div class="stitle">Fichier source</div>
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".gpx">
+    <span class="drop-icon">🗺️</span>
+    <div class="drop-label">Glisser un fichier GPX ici</div>
+    <div class="drop-hint">ou cliquer pour parcourir</div>
+  </div>
+  <div class="stats" id="stats">
+    <div class="stat-row"><span class="sk">Fichier</span><span class="sv" id="s-name">—</span></div>
+    <div class="stat-row"><span class="sk">Points GPX</span><span class="sv" id="s-pts">—</span></div>
+    <div class="stat-row"><span class="sk">Distance</span><span class="sv" id="s-dist">—</span></div>
+    <div class="stat-row"><span class="sk">Élévation</span><span class="sv" id="s-ele">—</span></div>
+    <div class="stat-row"><span class="sk">D+ / D−</span><span class="sv" id="s-dplus">—</span></div>
+    <div class="stat-row"><span class="sk">Ascensions détectées</span><span class="sv" id="s-climbs">—</span></div>
+    <div class="stat-row" style="margin-top:4px"><span class="sk"></span><button id="fetchEleBtn" style="display:none;padding:3px 10px;font-size:.72rem;background:transparent;border:1px solid var(--accent2);color:var(--accent2);border-radius:4px;cursor:pointer;">⬇ Récupérer élévation SRTM</button></div>
+  </div>
+  <div class="error" id="errBox"></div>
+</div>
+
+<div class="card">
+  <div class="stitle">Options</div>
+  <div class="row3">
+    <div class="opt" style="grid-column:1/3">
+      <label>Nom de la route (affiché sur le Bryton)</label>
+      <input type="text" id="routeName" placeholder="ma_route" maxlength="40">
+    </div>
+    <div class="opt">
+      <label>Points max</label>
+      <input type="number" id="maxPts" value="9999" min="100" max="9999">
+    </div>
+  </div>
+
+  <div class="simp-block">
+    <div class="simp-header">
+      <label>Simplification</label>
+      <div class="toggle-group">
+        <button class="tgl active" data-mode="none">Aucune</button>
+        <button class="tgl" data-mode="rdp">RDP</button>
+        <button class="tgl" data-mode="uniform">Uniforme</button>
+      </div>
+    </div>
+    <div class="simp-detail" id="detail-rdp">
+      <div class="slider-row">
+        <label>Tolérance RDP</label>
+        <input type="range" id="rdpSlider" min="1" max="30" value="3" step="1">
+        <span class="sv2" id="rdpVal">3 m</span>
+      </div>
+    </div>
+    <div class="simp-detail" id="detail-uniform">
+      <div class="slider-row">
+        <label>Garder 1 point sur N</label>
+        <input type="range" id="stepSlider" min="2" max="20" value="2" step="1">
+        <span class="sv2" id="stepVal">1/2</span>
+      </div>
+    </div>
+    <div class="preview-bar"><div class="preview-fill" id="previewFill" style="width:100%"></div></div>
+    <div class="preview-label" id="previewLabel">— points encodés</div>
+  </div>
+
+  <button class="btn" id="convertBtn" disabled>Convertir</button>
+</div>
+
+<div class="card output-section" id="outputCard">
+  <div class="stitle">Résultat</div>
+  <div class="file-tree" id="fileTree"></div>
+
+  <div id="climbSummary" style="display:none;margin-bottom:14px;">
+    <div class="stitle" style="margin-bottom:8px;">Ascensions encodées</div>
+    <div class="climb-list" id="climbList"></div>
+  </div>
+
+  <button class="btn" id="dlBtn">⬇ Télécharger le .zip</button>
+
+  <div class="transfer-section">
+    <button class="transfer-btn" id="transferBtn" disabled>
+      <span>⚡</span> Copier directement sur le Bryton (USB)
+    </button>
+    <div class="transfer-status" id="transferStatus"></div>
+  </div>
+
+  <div class="notice" style="margin-top:12px">
+    <strong>Installation manuelle :</strong><br>
+    Dézipper → copier le <strong>dossier</strong> <code>&lt;nom&gt;/</code> et les <strong>3 fichiers</strong>
+    <code>&lt;nom&gt;.smy</code> <code>&lt;nom&gt;.tinfo</code> <code>&lt;nom&gt;.track</code>
+    dans <code>Tracks\</code> sur le Bryton (USB mass storage).<br>
+    <span id="transferNote">Le bouton ⚡ ci-dessus détecte automatiquement le Bryton si branché.</span>
+  </div>
+</div>
+
+<script>
+// ── Geo ───────────────────────────────────────────────────────────────────────
+function hav(lat1,lon1,lat2,lon2){
+  const R=6371000,p1=lat1*Math.PI/180,p2=lat2*Math.PI/180;
+  const dp=(lat2-lat1)*Math.PI/180,dl=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dp/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function totalDist(pts){let d=0;for(let i=1;i<pts.length;i++)d+=hav(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1]);return d;}
+function calcClimb(pts){
+  let up=0,dn=0;
+  for(let i=1;i<pts.length;i++){
+    if(pts[i][2]==null||pts[i-1][2]==null)continue;
+    const de=pts[i][2]-pts[i-1][2];
+    if(de>0)up+=de;else dn-=de;
+  }
+  return{up:Math.round(up),dn:Math.round(dn)};
+}
+
+// RDP simplification
+function rdpFn(pts,eps){
+  if(pts.length<3)return pts;
+  let mx=0,idx=0;
+  const ax=pts[0][0],ay=pts[0][1],bx=pts[pts.length-1][0],by=pts[pts.length-1][1];
+  const len=Math.hypot(bx-ax,by-ay);
+  for(let i=1;i<pts.length-1;i++){
+    const px=pts[i][0],py=pts[i][1];
+    const dm=(len<1e-12?Math.hypot(px-ax,py-ay):Math.abs((by-ay)*px-(bx-ax)*py+bx*ay-by*ax)/len)*111320;
+    if(dm>mx){mx=dm;idx=i;}
+  }
+  if(mx>eps){const l=rdpFn(pts.slice(0,idx+1),eps),r=rdpFn(pts.slice(idx),eps);return[...l.slice(0,-1),...r];}
+  return[pts[0],pts[pts.length-1]];
+}
+
+// ── Elevation fetch (Open-Elevation API) ─────────────────────────────────────
+async function fetchElevations(pts){
+  // Batch requests to avoid URL length limits - max 512 pts per call
+  const BATCH = 512;
+  const result = new Array(pts.length).fill(null);
+  for(let start=0; start<pts.length; start+=BATCH){
+    const batch = pts.slice(start, start+BATCH);
+    const locations = batch.map(p=>({latitude:p[0],longitude:p[1]}));
+    try {
+      const resp = await fetch('https://api.open-elevation.com/api/v1/lookup', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({locations}),
+        signal: AbortSignal.timeout(15000)
+      });
+      if(!resp.ok) throw new Error('HTTP '+resp.status);
+      const data = await resp.json();
+      data.results.forEach((r,i)=>{ result[start+i]=r.elevation; });
+    } catch(e){
+      console.warn('Open-Elevation batch failed:', e.message);
+      // leave nulls - will try next batch or fail gracefully
+    }
+  }
+  return result;
+}
+
+// ── Climb detection ───────────────────────────────────────────────────────────
+function detectClimbs(pts, dists){
+  const n = pts.length;
+  const hasEle = pts.some(p=>p[2]!=null);
+  if(!hasEle) return [];
+
+  // Median smooth elevation
+  const raw = pts.map(p=>p[2]??0);
+  const W=5, es=[];
+  for(let i=0;i<n;i++){
+    const s=[...raw.slice(Math.max(0,i-W),i+W+1)].sort((a,b)=>a-b);
+    es.push(s[Math.floor(s.length/2)]);
+  }
+
+  // Precompute local grade over 500m ahead (for plateau detection)
+  const lg=[];
+  for(let i=0;i<n;i++){
+    const target=dists[i]+500; let j=i;
+    while(j<n-1&&dists[j]<target) j++;
+    const d=dists[j]-dists[i],e=es[j]-es[i];
+    lg.push(d>50?e/d:0);
+  }
+
+  const MIN_GAIN_BIG    = 100;   // D+ >= 100m → montée certaine même si pente douce
+  const MIN_GAIN_SMALL  = 30;    // D+ >= 30m + pente >= 3% → montée courte et raide
+  const MIN_GRADE_SMALL = 0.03;
+  const PLATEAU_GRADE   = 0.015; // < 1.5% = faux plat ou plateau
+  const PLATEAU_MIN_M   = 800;   // plateau doit durer > 800m pour être tronqué
+
+  const all=[];
+  let i=0;
+  while(i<n-2){
+    if(es[i+1]<=es[i]){i++;continue;}
+    const si=i;
+    let peak=es[i], pi=i;
+    let j=i+1;
+    while(j<n){
+      if(es[j]>peak){peak=es[j];pi=j;}
+      const peakDrop=Math.max(10,Math.min(80,(peak-es[si])*0.25));
+      if(peak-es[j]>=peakDrop)break;
+      j++;
+    }
+    // Tronquer le plateau final : trouver le dernier point encore en montée
+    let lastClimbing=si;
+    for(let k=si;k<=pi;k++) if(lg[k]>=PLATEAU_GRADE) lastClimbing=k;
+    const plateauLen=dists[pi]-dists[lastClimbing];
+    const ei=plateauLen>=PLATEAU_MIN_M ? lastClimbing : pi;
+
+    const gain=es[ei]-es[si];
+    const len=dists[ei]-dists[si];
+    if(len<10){i=pi+1;continue;}
+    const grade=gain/len;
+    const qualifies=(gain>=MIN_GAIN_BIG&&len>200)||
+                    (gain>=MIN_GAIN_SMALL&&len>50&&grade>=MIN_GRADE_SMALL);
+    if(qualifies){
+      all.push({start:dists[si], length:len, gain, grade, startPt:si, endPt:ei});
+    }
+    i=pi+1;
+  }
+  // top 5 by gain, sorted by position
+  all.sort((a,b)=>b.gain-a.gain);
+  return all.slice(0,5).sort((a,b)=>a.start-b.start);
+}
+
+// ── GPX parser ────────────────────────────────────────────────────────────────
+function parseGPX(xml){
+  const doc=new DOMParser().parseFromString(xml,'application/xml');
+  if(doc.querySelector('parsererror'))throw new Error('GPX invalide');
+
+  // getElementsByTagName ignores namespaces - works with xmlns="..." default ns
+  const nodes=[
+    ...doc.getElementsByTagName('trkpt'),
+    ...doc.getElementsByTagName('rtept')
+  ];
+  if(!nodes.length)throw new Error('Aucun point trkpt/rtept');
+
+  // getEle: use getElementsByTagName to bypass namespace issues
+  function getEle(node){
+    const en=node.getElementsByTagName('ele')[0];
+    if(en){const v=parseFloat(en.textContent);if(isFinite(v))return v;}
+    return null;
+  }
+
+  const pts=Array.from(nodes).map(n=>{
+    const lat=parseFloat(n.getAttribute('lat')),lon=parseFloat(n.getAttribute('lon'));
+    return[lat,lon,getEle(n)];
+  }).filter(p=>isFinite(p[0])&&isFinite(p[1]));
+  if(!pts.length)throw new Error('Coordonnées invalides');
+
+  // Extract route name - also namespace-safe
+  function getTagText(tag){
+    const el=doc.getElementsByTagName(tag)[0];
+    return el?el.textContent.trim():null;
+  }
+  const gpxName=getTagText('name');
+  return{pts,gpxName};
+}
+
+// ── Bryton binary encoders ────────────────────────────────────────────────────
+function encodeTrack(pts){
+  const buf=new ArrayBuffer(pts.length*16),v=new DataView(buf);
+  for(let i=0;i<pts.length;i++){
+    v.setInt32(i*16,   Math.round(pts[i][0]*1e6),true);
+    v.setInt32(i*16+4, Math.round(pts[i][1]*1e6),true);
+    const ele=pts[i][2]!=null?Math.max(0,Math.min(65535,Math.round(pts[i][2]))):0;
+    v.setUint16(i*16+8, ele, true);
+  }
+  return buf;
+}
+
+function encodeSmy(pts,climbs){
+  const buf=new ArrayBuffer(68),v=new DataView(buf);
+  const lats=pts.map(p=>p[0]),lons=pts.map(p=>p[1]);
+  const{up,dn}=calcClimb(pts);
+  v.setUint16(0,1,true);
+  v.setUint16(2,pts.length,true);
+  v.setInt32(4, Math.round(Math.max(...lats)*1e6),true);
+  v.setInt32(8, Math.round(Math.min(...lats)*1e6),true);
+  v.setInt32(12,Math.round(Math.max(...lons)*1e6),true);
+  v.setInt32(16,Math.round(Math.min(...lons)*1e6),true);
+  v.setInt32(20,Math.round(totalDist(pts)),true);
+  v.setInt32(60,up,true);
+  v.setInt32(64,dn,true);
+  return buf;
+}
+
+function encodeTinfo(climbs){
+  // Format: nClimbs pairs × 2 records × 44 bytes
+  // Each record: uint32(flag | pt_idx) + 40 zero bytes
+  // flag 0x00BE0000 = climb start, 0x00BF0000 = climb end
+  if(!climbs || !climbs.length) return new ArrayBuffer(0);
+  const n = climbs.length;
+  const buf = new ArrayBuffer(n * 2 * 44);
+  const v = new DataView(buf);
+  for(let i=0; i<n; i++){
+    const startVal = (0x00BE << 16) | (climbs[i].startPt & 0xFFFF);
+    const endVal   = (0x00BF << 16) | (climbs[i].endPt   & 0xFFFF);
+    v.setUint32(i*88,    startVal, true);  // record start: 44 bytes, first 4 = flag|ptIdx
+    v.setUint32(i*88+44, endVal,   true);  // record end
+  }
+  return buf;
+}
+
+function encodeJunc(pts, dists){
+  // Detect significant turns from the GPX track
+  // and encode only those as junctions with bearing info
+  const n = pts.length;
+
+  // Smooth bearing: heading from ~50m before to ~50m after point i
+  function smoothBearing(i){
+    const WM = 50;
+    let before=i; while(before>0 && dists[i]-dists[before]<WM) before--;
+    let after=i;  while(after<n-1 && dists[after]-dists[i]<WM) after++;
+    const lat1=pts[before][0],lon1=pts[before][1];
+    const lat2=pts[after][0], lon2=pts[after][1];
+    const phi1=lat1*Math.PI/180, phi2=lat2*Math.PI/180;
+    const dl=(lon2-lon1)*Math.PI/180;
+    const x=Math.sin(dl)*Math.cos(phi2);
+    const y=Math.cos(phi1)*Math.sin(phi2)-Math.sin(phi1)*Math.cos(phi2)*Math.cos(dl);
+    return (Math.atan2(x,y)*180/Math.PI+360)%360;
+  }
+
+  const TURN_THRESH = 25;   // degrees to qualify as a turn
+  const MIN_GAP_M  = 100;   // min distance between two turns
+
+  const turns = [];   // {ptIdx, lat, lon, bearOut}
+  let lastDist = -999;
+  // Precompute headings (step every ~5 points for speed)
+  for(let i=10; i<n-10; i++){
+    if(dists[i]-lastDist < MIN_GAP_M) continue;
+    const hBefore = smoothBearing(Math.max(0,i-5));
+    const hAfter  = smoothBearing(Math.min(n-1,i+5));
+    const turn = ((hAfter-hBefore+180)%360)-180;
+    if(Math.abs(turn) >= TURN_THRESH){
+      turns.push({ptIdx:i, lat:pts[i][0], lon:pts[i][1], bearOut:hAfter});
+      lastDist = dists[i];
+    }
+  }
+
+  // Add sentinel (0xFFFFFFFF) at end like real Bryton format
+  const nRec = turns.length + 1;
+  const buf = new ArrayBuffer(nRec*12), v = new DataView(buf);
+  for(let i=0;i<turns.length;i++){
+    const t = turns[i];
+    v.setInt32(i*12,   Math.round(t.lat*1e6), true);
+    v.setInt32(i*12+4, Math.round(t.lon*1e6), true);
+    // extra: uint8(ptIdx_lo) uint8(ptIdx_hi) uint8(b10=1) uint8(b11=bearOut/2)
+    v.setUint8(i*12+8,  t.ptIdx & 0xFF);
+    v.setUint8(i*12+9,  (t.ptIdx >> 8) & 0xFF);
+    v.setUint8(i*12+10, 1);   // b10=1: on-route junction
+    v.setUint8(i*12+11, Math.round(t.bearOut/2) & 0xFF);  // bearing /2 → 0-179
+  }
+  // Sentinel
+  v.setUint32((nRec-1)*12,   0xFFFFFFFF, true);
+  v.setUint32((nRec-1)*12+4, 0xFFFFFFFF, true);
+  v.setUint32((nRec-1)*12+8, 0xFFFFFFFF, true);
+
+  return buf;
+}
+
+function encodeSortPath(pts){
+  const buf=new ArrayBuffer(16),v=new DataView(buf);
+  v.setUint32(0,0,true);v.setUint32(4,pts.length-1,true);
+  v.setUint32(8,0x0BAF1000,true);v.setUint32(12,0,true);return buf;
+}
+
+function encodeClimb(climbs){
+  // 16 bytes per climb: float32 start_dist, float32 length, float32 gain, float32 grade
+  if(!climbs.length) return new ArrayBuffer(0);
+  const buf=new ArrayBuffer(climbs.length*16),v=new DataView(buf);
+  for(let i=0;i<climbs.length;i++){
+    v.setFloat32(i*16,   climbs[i].start,  true);
+    v.setFloat32(i*16+4, climbs[i].length, true);
+    v.setFloat32(i*16+8, climbs[i].gain,   true);
+    v.setFloat32(i*16+12,climbs[i].grade,  true);
+  }
+  return buf;
+}
+
+// ── File system access (for direct transfer) ──────────────────────────────────
+const supportsFS = 'showDirectoryPicker' in window;
+
+async function findBrytonDrive(){
+  // User picks a directory; we check if it looks like the Bryton drive
+  // (can't enumerate drives automatically in browser - must ask user to pick)
+  try {
+    const dir = await window.showDirectoryPicker({mode:'readwrite'});
+    return dir;
+  } catch(e){
+    return null;
+  }
+}
+
+async function writeFilesToDir(rootDir, name, files){
+  // files = { 'name.smy': ArrayBuffer, 'name.tinfo': ..., 'name.track': ...,
+  //           'name/dupli.track': ..., 'name/list.junc': ..., etc }
+
+  // Get or create Tracks folder
+  let planTrip;
+  try { planTrip = await rootDir.getDirectoryHandle('Tracks', {create:true}); }
+  catch(e){ throw new Error('Impossible de créer Tracks/ : '+e.message); }
+
+  // Write root-level files
+  const rootFiles = ['smy','tinfo','track'];
+  for(const ext of rootFiles){
+    const fname = name+'.'+ext;
+    if(files[fname]===undefined) continue;
+    const fh = await planTrip.getFileHandle(fname, {create:true});
+    const writable = await fh.createWritable();
+    await writable.write(files[fname]);
+    await writable.close();
+  }
+
+  // Create subdir
+  let subDir;
+  try { subDir = await planTrip.getDirectoryHandle(name, {create:true}); }
+  catch(e){ throw new Error('Impossible de créer '+name+'/ : '+e.message); }
+
+  const subFiles = ['dupli.track','list.junc','list2.junc',name+'.climb','sort1.path'];
+  for(const fname of subFiles){
+    if(files[fname]===undefined) continue;
+    const fh = await subDir.getFileHandle(fname, {create:true});
+    const writable = await fh.createWritable();
+    await writable.write(files[fname]);
+    await writable.close();
+  }
+}
+
+// ── Simplification ────────────────────────────────────────────────────────────
+let simpMode='none';
+function applySimp(pts){
+  const maxP=parseInt($('maxPts').value)||9999;
+  let out=pts;
+  if(simpMode==='rdp'){
+    out=rdpFn(pts,parseFloat($('rdpSlider').value));
+  } else if(simpMode==='uniform'){
+    const step=parseInt($('stepSlider').value);
+    out=pts.filter((_,i)=>i%step===0);
+    if(out[out.length-1]!==pts[pts.length-1])out.push(pts[pts.length-1]);
+  }
+  if(out.length>maxP){
+    const step=Math.ceil(out.length/maxP);
+    const sub=out.filter((_,i)=>i%step===0);
+    if(sub[sub.length-1]!==out[out.length-1])sub.push(out[out.length-1]);
+    out=sub;
+  }
+  return out;
+}
+
+// ── UI ────────────────────────────────────────────────────────────────────────
+let parsedPoints=null, gpxName=null, zipBlob=null, generatedFiles=null;
+const $=id=>document.getElementById(id);
+
+document.querySelectorAll('.tgl').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.tgl').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active'); simpMode=btn.dataset.mode;
+    document.querySelectorAll('.simp-detail').forEach(d=>d.classList.remove('visible'));
+    if(simpMode!=='none') $('detail-'+simpMode).classList.add('visible');
+    updatePreview();
+  });
+});
+$('rdpSlider').addEventListener('input',()=>{$('rdpVal').textContent=$('rdpSlider').value+' m';updatePreview();});
+$('stepSlider').addEventListener('input',()=>{$('stepVal').textContent='1/'+$('stepSlider').value;updatePreview();});
+$('maxPts').addEventListener('input',updatePreview);
+
+function buildDists(pts){
+  const d=[0];
+  for(let i=1;i<pts.length;i++) d.push(d[d.length-1]+hav(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1]));
+  return d;
+}
+
+function updatePreview(){
+  if(!parsedPoints){$('previewLabel').textContent='— points encodés';return;}
+  const out=applySimp(parsedPoints);
+  const pct=Math.round(out.length/parsedPoints.length*100);
+  $('previewFill').style.width=pct+'%';
+  $('previewLabel').textContent=`${parsedPoints.length.toLocaleString('fr')} pts → ${out.length.toLocaleString('fr')} encodés (${pct}%)`;
+}
+
+const drag=on=>$('dropZone').classList.toggle('drag-over',on);
+$('dropZone').addEventListener('dragover',e=>{e.preventDefault();drag(true);});
+$('dropZone').addEventListener('dragleave',()=>drag(false));
+$('dropZone').addEventListener('drop',e=>{e.preventDefault();drag(false);if(e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0]);});
+$('fileInput').addEventListener('change',()=>{if($('fileInput').files[0])loadFile($('fileInput').files[0]);});
+
+function showErr(m){$('errBox').textContent=m;$('errBox').classList.add('visible');}
+function clearErr(){$('errBox').classList.remove('visible');}
+
+function loadFile(file){
+  clearErr();$('stats').classList.remove('visible');parsedPoints=null;$('convertBtn').disabled=true;
+  if(!file.name.toLowerCase().endsWith('.gpx')){showErr('Fichier .gpx requis');return;}
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
+      const result=parseGPX(e.target.result);
+      parsedPoints=result.pts; gpxName=result.gpxName;
+      const d=totalDist(parsedPoints);
+      const hasEle=parsedPoints.some(p=>p[2]!=null);
+      const dists=buildDists(parsedPoints);
+      const climbs=detectClimbs(parsedPoints,dists);
+      $('s-name').textContent=file.name;
+      $('s-pts').textContent=parsedPoints.length.toLocaleString('fr');
+      $('s-dist').textContent=(d/1000).toFixed(2)+' km';
+      if(hasEle){
+        const eles=parsedPoints.filter(p=>p[2]!=null).map(p=>p[2]);
+        const{up,dn}=calcClimb(parsedPoints);
+        $('s-ele').textContent=`${Math.min(...eles).toFixed(0)}–${Math.max(...eles).toFixed(0)} m`;
+        $('s-ele').className='sv';
+        $('s-dplus').textContent=`D+ ${up} m  /  D− ${dn} m`;
+        $('s-dplus').className='sv';
+        $('s-climbs').textContent=climbs.length ? climbs.length+' détectée(s)' : 'aucune (D+ < 100m et pente < 3%)';
+        $('fetchEleBtn').style.display='none';
+      } else {
+        $('s-ele').textContent='absent — '; $('s-ele').className='sv warn';
+        $('s-dplus').textContent='—';$('s-dplus').className='sv warn';
+        $('s-climbs').textContent='—';
+        $('fetchEleBtn').style.display='inline-block';
+      }
+      // Pre-fill name: GPX metadata name > filename
+      if(!$('routeName').value){
+        const suggested = gpxName || file.name.replace(/\.gpx$/i,'');
+        $('routeName').value = suggested.replace(/[^a-zA-Z0-9_\-]/g,'_').slice(0,40);
+      }
+      $('stats').classList.add('visible');
+      $('convertBtn').disabled=false;
+      updatePreview();
+    }catch(err){showErr(err.message);}
+  };
+  r.readAsText(file);
+}
+
+$('fetchEleBtn').addEventListener('click', async()=>{
+  if(!parsedPoints) return;
+  const btn=$('fetchEleBtn');
+  btn.disabled=true; btn.textContent='⏳ Téléchargement…';
+  try {
+    const eles = await fetchElevations(parsedPoints);
+    const fetched = eles.filter(e=>e!=null).length;
+    if(fetched===0) throw new Error('API indisponible');
+    // Inject elevations
+    parsedPoints = parsedPoints.map((p,i)=>[p[0],p[1], eles[i]??p[2]]);
+    // Recompute stats
+    const eles2 = parsedPoints.map(p=>p[2]).filter(e=>e!=null);
+    const{up,dn}=calcClimb(parsedPoints);
+    const dists=buildDists(parsedPoints);
+    const climbs=detectClimbs(parsedPoints,dists);
+    $('s-ele').textContent=`${Math.min(...eles2).toFixed(0)}–${Math.max(...eles2).toFixed(0)} m (SRTM)`;
+    $('s-ele').className='sv';
+    $('s-dplus').textContent=`D+ ${up} m  /  D− ${dn} m`;
+    $('s-dplus').className='sv';
+    $('s-climbs').textContent=climbs.length ? climbs.length+' détectée(s)' : 'aucune';
+    btn.style.display='none';
+  } catch(e) {
+    btn.disabled=false; btn.textContent='⬇ Récupérer élévation SRTM';
+    $('s-ele').textContent='Erreur API : '+e.message; $('s-ele').className='sv warn';
+  }
+});
+
+$('convertBtn').addEventListener('click',async()=>{
+  if(!parsedPoints)return;
+  clearErr();
+  $('convertBtn').disabled=true;$('convertBtn').textContent='Génération…';
+
+  const name=($('routeName').value.trim()||'route').replace(/[^a-zA-Z0-9_\-]/g,'_');
+  const pts=applySimp(parsedPoints);
+  const dists=buildDists(pts);
+  const climbs=detectClimbs(pts,dists);
+  const{up,dn}=calcClimb(pts);
+  const distKm=(totalDist(pts)/1000).toFixed(2);
+  const hasEle=pts.some(p=>p[2]!=null);
+
+  const trackBuf  = encodeTrack(pts);
+  const smyBuf    = encodeSmy(pts,climbs);
+  const tinfoBuf  = encodeTinfo(climbs);
+  const juncBuf   = encodeJunc(pts, dists);
+  const pathBuf   = encodeSortPath(pts);
+  const climbBuf  = encodeClimb(climbs);
+
+  generatedFiles = {
+    [name+'.smy']:   smyBuf,
+    [name+'.tinfo']: tinfoBuf,
+    [name+'.track']: trackBuf,
+    'dupli.track':   trackBuf,
+    'list.junc':     juncBuf,
+    'list2.junc':    juncBuf,
+    [name+'.climb']: climbBuf,
+    'sort1.path':    pathBuf,
+  };
+
+  const zip=new JSZip();
+  zip.file(`${name}.smy`,smyBuf);
+  zip.file(`${name}.tinfo`,tinfoBuf);
+  zip.file(`${name}.track`,trackBuf);
+  const dir=zip.folder(name);
+  dir.file('dupli.track',trackBuf);
+  dir.file('list.junc',juncBuf);
+  dir.file('list2.junc',juncBuf);
+  dir.file(`${name}.climb`,climbBuf);
+  dir.file('sort1.path',pathBuf);
+  zipBlob=await zip.generateAsync({type:'blob'});
+
+  const fmt=b=>b<1024?b+' B':b<1048576?(b/1024).toFixed(1)+' KB':(b/1048576).toFixed(2)+' MB';
+  const eleStr=hasEle?` · D+ ${up}m D− ${dn}m`:' · sans élévation';
+  $('fileTree').innerHTML=`
+<span class="dir">📁 Tracks\</span>
+<br><span class="file">  ├ ${name}.smy</span><span class="fsize">${fmt(smyBuf.byteLength)}</span>
+<br><span class="file">  ├ ${name}.tinfo</span><span class="fsize">${fmt(tinfoBuf.byteLength)}${climbs.length?' · '+climbs.length+' montées indexées':' · vide'}</span>
+<br><span class="file">  ├ ${name}.track</span><span class="fsize">${fmt(trackBuf.byteLength)} · ${pts.length.toLocaleString('fr')} pts · ${distKm} km${eleStr}</span>
+<br><span class="dir">  └ 📁 ${name}\</span>
+<br><span class="file">        ├ dupli.track</span><span class="fsize">${fmt(trackBuf.byteLength)}</span>
+<br><span class="file">        ├ list.junc</span><span class="fsize">${fmt(juncBuf.byteLength)} · ${Math.floor(juncBuf.byteLength/12)-1} virages</span>
+<br><span class="file">        ├ list2.junc</span><span class="fsize">${fmt(juncBuf.byteLength)}</span>
+<br><span class="file">        ├ ${name}.climb</span><span class="fsize">${fmt(climbBuf.byteLength)}${climbs.length?' · '+climbs.length+' ascension(s)':' · vide'}</span>
+<br><span class="file">        └ sort1.path</span><span class="fsize">${fmt(pathBuf.byteLength)}</span>`;
+
+  // Show climbs
+  if(climbs.length){
+    $('climbList').innerHTML=climbs.map((c,i)=>`
+      <div class="climb-item">
+        <span>#${i+1}</span>
+        <strong>${(c.start/1000).toFixed(1)} km</strong>
+        <span>${(c.length/1000).toFixed(1)} km</span>
+        <strong>D+ ${c.gain.toFixed(0)} m</strong>
+        <span>${(c.grade*100).toFixed(1)}%</span>
+      </div>`).join('');
+    $('climbSummary').style.display='block';
+  } else {
+    $('climbSummary').style.display='none';
+  }
+
+  $('transferBtn').disabled=!supportsFS;
+  if(!supportsFS) $('transferNote').textContent='Transfert direct non disponible (requiert Chrome/Edge récent).';
+
+  $('outputCard').classList.add('visible');
+  $('outputCard').scrollIntoView({behavior:'smooth',block:'nearest'});
+  $('convertBtn').textContent='Convertir';
+  $('convertBtn').disabled=false;
+});
+
+$('dlBtn').addEventListener('click',()=>{
+  if(!zipBlob)return;
+  const name=($('routeName').value.trim()||'route').replace(/[^a-zA-Z0-9_\-]/g,'_');
+  const url=URL.createObjectURL(zipBlob);
+  const a=document.createElement('a');a.href=url;a.download=name+'_bryton.zip';a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+});
+
+$('transferBtn').addEventListener('click',async()=>{
+  if(!generatedFiles) return;
+  const name=($('routeName').value.trim()||'route').replace(/[^a-zA-Z0-9_\-]/g,'_');
+  const st=$('transferStatus');
+  st.className='transfer-status';
+  st.textContent='';
+  $('transferBtn').disabled=true;
+  $('transferBtn').textContent='⏳ Sélectionner le lecteur Bryton…';
+
+  try{
+    const rootDir = await findBrytonDrive();
+    if(!rootDir){
+      $('transferBtn').textContent='⚡ Copier directement sur le Bryton (USB)';
+      $('transferBtn').disabled=false;
+      return;
+    }
+    $('transferBtn').textContent='⏳ Copie en cours…';
+    await writeFilesToDir(rootDir, name, generatedFiles);
+    st.className='transfer-status ok';
+    st.textContent=`✓ Route "${name}" copiée dans Tracks\\ — débrancher proprement puis Menu → Itinéraires.`;
+  } catch(e){
+    st.className='transfer-status err';
+    st.textContent='Erreur : '+e.message;
+  }
+  $('transferBtn').textContent='⚡ Copier directement sur le Bryton (USB)';
+  $('transferBtn').disabled=false;
+});
+</script>
+</body>
+</html>
+
+
