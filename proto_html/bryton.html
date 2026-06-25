@@ -327,13 +327,34 @@ function parseGPX(xml){
 }
 
 // ── Bryton binary encoders ────────────────────────────────────────────────────
-function encodeTrack(pts){
+
+// Byte 10 de chaque point = pente locale en % (int8 signé).
+// Lissage sur une fenêtre de WIN mètres centrée sur le point pour absorber le bruit GPS.
+function computeGrades(pts, dists){
+  const n=pts.length, WIN=200, grades=new Array(n).fill(0);
+  const hasEle=pts.some(p=>p[2]!=null);
+  if(!hasEle) return grades;
+  for(let i=0;i<n;i++){
+    if(pts[i][2]==null) continue;
+    let a=i, b=i;
+    while(a>0   && dists[i]-dists[a]<WIN/2) a--;
+    while(b<n-1 && dists[b]-dists[i]<WIN/2) b++;
+    const dDist=dists[b]-dists[a];
+    if(dDist<10||pts[a][2]==null||pts[b][2]==null){grades[i]=0;continue;}
+    const g=Math.round((pts[b][2]-pts[a][2])/dDist*100);
+    grades[i]=Math.max(-127,Math.min(127,g));
+  }
+  return grades;
+}
+
+function encodeTrack(pts, grades){
   const buf=new ArrayBuffer(pts.length*16),v=new DataView(buf);
   for(let i=0;i<pts.length;i++){
     v.setInt32(i*16,   Math.round(pts[i][0]*1e6),true);
     v.setInt32(i*16+4, Math.round(pts[i][1]*1e6),true);
     const ele=pts[i][2]!=null?Math.max(0,Math.min(65535,Math.round(pts[i][2]))):0;
     v.setUint16(i*16+8, ele, true);
+    if(grades) v.setInt8(i*16+10, grades[i]);
   }
   return buf;
 }
@@ -640,7 +661,8 @@ $('convertBtn').addEventListener('click',async()=>{
   const distKm=(totalDist(pts)/1000).toFixed(2);
   const hasEle=pts.some(p=>p[2]!=null);
 
-  const trackBuf  = encodeTrack(pts);
+  const grades    = computeGrades(pts, dists);
+  const trackBuf  = encodeTrack(pts, grades);
   const smyBuf    = encodeSmy(pts,climbs);
   const tinfoBuf  = encodeTinfo(climbs);
   const juncBuf   = encodeJunc(pts, dists);
