@@ -9,6 +9,8 @@ Licensed under the [MIT License](LICENSE).
 
 **→ Demo : [dev.agriscope.fr/bryton.html](https://dev.agriscope.fr/bryton.html)**
 
+![Screenshot](proto_html/screenshot.png)
+
 ---
 
 ## Utilisation
