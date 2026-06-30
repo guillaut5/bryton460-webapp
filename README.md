@@ -71,12 +71,16 @@ data_references/
 
 ## Ce qui est confirmé vs approximé
 
-| Fichier | Statut |
-|---|---|
-| `.track` lat/lon/ele/pente | ✅ Confirmé sur données officielles |
-| `.smy` bbox/dist/D+ | ✅ Confirmé (D- = 0 corrigé) |
-| `.tinfo` structure | ✅ Confirmé (flags 0xBE/0xBF + ptIdx) |
-| `.climb` structure | ✅ Confirmé (4×float32) |
-| `.climb` détection des montées | 🔶 Approché — 1re montée exacte, autres ≈ ±2km |
-| `list.junc` | 🔶 Heuristique angles — devrait venir d'OSM Overpass |
-| `sort1.path` | 🔴 Format connu (tuiles OSM z=13) mais non implémenté |
+Validé par comparaison octet-à-octet avec les fichiers générés par l'appli officielle Bryton
+sur une trace réelle de 100 km / 15 444 points.
+
+| Fichier | Statut | Détail |
+|---|---|---|
+| `.track` lat/lon/ele | ✅ Correct | Encodage int32/uint16 LE validé |
+| `.track` byte 10 pente | ✅ Correct | Écart ≤ 1% vs officiel (fenêtre 200m) |
+| `.smy` | ✅ Correct | bbox, distance, D+ ok — D- = 0 comme l'officiel |
+| `.tinfo` | ✅ Correct | Flags 0xBE/0xBF + ptIdx sur 16 bits |
+| `.climb` structure | ✅ Correct | 4 × float32 : start_m, longueur_m, D+_m, grade |
+| `sort1.path` | ✅ Correct | Segments par tuile OSM z=13 — format validé |
+| `.climb` détection | 🔶 Approché | 1re montée exacte, autres ≈ ±2 km vs officiel |
+| `list.junc` | 🔶 Approché | Détection par angle de virage — pas les vraies intersections OSM |
