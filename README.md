@@ -3,6 +3,10 @@
 Outil HTML pour générer les fichiers natifs du GPS **Bryton 460** à partir d'un fichier GPX.
 Conçu pour les utilisateurs PC sans l'appli Bryton officielle (Nokia, PC only, etc.).
 
+**Unofficial tool — not affiliated with Bryton.**
+File formats obtained by reverse engineering for interoperability purposes.
+Licensed under the [MIT License](LICENSE).
+
 ---
 
 ## Utilisation
