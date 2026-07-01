@@ -13,9 +13,48 @@ Licensed under the [MIT License](LICENSE).
 
 ---
 
+## Développement
+
+### Prérequis
+
+- Node.js ≥ 18
+
+### Installer l'environnement
+
+```bash
+npm install
+```
+
+### Lancer les tests
+
+```bash
+npm test
+```
+
+40 tests unitaires couvrant les encodeurs binaires et les fonctions géo.
+
+### Builder pour la distribution
+
+```bash
+npm run build
+```
+
+Produit `dist/index.html` — fichier unique auto-suffisant (CSS + JS inlinés par `vite-plugin-singlefile`).
+Il n'y a **que ce fichier** à déployer sur un serveur web statique.
+
+### Développement local avec rechargement automatique
+
+```bash
+npm run dev
+```
+
+Ouvre `http://localhost:5173` avec hot reload.
+
+---
+
 ## Utilisation
 
-1. Ouvrir `proto_html/bryton.html` dans Chrome ou Edge
+1. Ouvrir `dist/index.html` (ou la démo en ligne) dans Chrome ou Edge
 2. Glisser un fichier `.gpx`
 3. Télécharger le `.zip` → dézipper dans `Tracks\` sur le Bryton (USB mass storage)
 
