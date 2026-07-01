@@ -57,6 +57,51 @@ Licensed under the [MIT License](LICENSE).
 
 ---
 
+## Philosophie du format — tout est pré-calculé
+
+Le Bryton 460 embarque un processeur ARM bas de gamme (quelques dizaines de MHz, ~1 Mo de RAM).
+Pas de trigonométrie, pas de parsing, pas d'allocation mémoire dynamique en temps réel.
+Tout le travail lourd est fait **côté PC à la conversion** — le device ne fait que lire et afficher.
+
+| Valeur | Calculée où | Stockée comment |
+|---|---|---|
+| Pente locale | PC — fenêtre glissante 200m | `int8` signé dans byte 10 du `.track` |
+| Bearing aux intersections | PC — formule haversine | `uint8` 0–255 dans `list.junc` (pas de degrés, pas de radians) |
+| Bounding box / distance / D+ | PC | `.smy` — 68 octets fixes |
+| Index des montées | PC — détection par profil | `.tinfo` — paires ptIdx début/fin |
+| Index spatial par tuile | PC — calcul Mercator z=13 | `sort1.path` |
+
+### Détection "sur le trajet" en deux étapes
+
+Le Bryton ne compare pas la position GPS aux 15 000 points de la trace à chaque seconde.
+Il utilise `sort1.path` comme filtre grossier :
+
+```
+Étape 1 — filtre rapide (sort1.path)
+  GPS → tuile OSM z=13 courante
+  → charge uniquement les ~500 points du segment correspondant
+  → élimine les 14 500 autres points
+
+Étape 2 — comparaison fine (.track)
+  Pour chaque point du segment :
+    distance(GPS, point) < seuil → sur le trajet
+                                 → off route
+```
+
+Sans `sort1.path` correct (tuile_id = 0 au lieu de la vraie tuile), le Bryton déclare
+immédiatement "off route" sans même regarder les coordonnées du `.track`.
+
+### Pas de cosinus sur le device
+
+Le bearing est stocké en **0–255** (pas en degrés) :
+```
+0   → Nord   64  → Est   128 → Sud   192 → Ouest
+```
+Le device fait un simple lookup de flèche sur un octet. C'est nous qui calculons
+`atan2` + la conversion `× 256/360` à la génération des fichiers.
+
+---
+
 ## Données de référence
 
 ```
