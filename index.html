@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GPX → Bryton 460</title>
+</head>
+<body>
+<h1>GPX → Bryton 460</h1>
+<p class="subtitle">Format natif complet · élévation · D+ · D− · ascensions · <span style="opacity:.5">v0.3</span></p>
+
+<div class="card">
+  <div class="stitle">Fichier source</div>
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".gpx">
+    <span class="drop-icon">🗺️</span>
+    <div class="drop-label">Glisser un fichier GPX ici</div>
+    <div class="drop-hint">ou cliquer pour parcourir</div>
+  </div>
+  <div class="stats" id="stats">
+    <div class="stat-row"><span class="sk">Fichier</span><span class="sv" id="s-name">—</span></div>
+    <div class="stat-row"><span class="sk">Points GPX</span><span class="sv" id="s-pts">—</span></div>
+    <div class="stat-row"><span class="sk">Distance</span><span class="sv" id="s-dist">—</span></div>
+    <div class="stat-row"><span class="sk">Élévation</span><span class="sv" id="s-ele">—</span></div>
+    <div class="stat-row"><span class="sk">D+ / D−</span><span class="sv" id="s-dplus">—</span></div>
+    <div class="stat-row"><span class="sk">Ascensions détectées</span><span class="sv" id="s-climbs">—</span></div>
+    <div class="stat-row" style="margin-top:4px"><span class="sk"></span><button id="fetchEleBtn" style="display:none;padding:3px 10px;font-size:.72rem;background:transparent;border:1px solid var(--accent2);color:var(--accent2);border-radius:4px;cursor:pointer;">⬇ Récupérer élévation SRTM</button></div>
+  </div>
+  <div class="error" id="errBox"></div>
+</div>
+
+<div class="card" id="profileCard">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+    <div class="stitle" style="margin-bottom:0;">Profil altimétrique</div>
+    <button id="addClimbBtn" style="padding:3px 10px;font-size:.72rem;background:transparent;border:1px solid var(--accent2);color:var(--accent2);border-radius:4px;cursor:pointer;">＋ Montée</button>
+  </div>
+  <svg id="profileSvg" viewBox="0 0 1000 110" preserveAspectRatio="none" height="110" style="overflow:visible"></svg>
+  <div style="font-size:.68rem;color:var(--muted);margin-top:4px;" id="profileHint"></div>
+  <div id="manualClimbList"></div>
+</div>
+
+<div class="card">
+  <div class="stitle">Options</div>
+  <div class="row3">
+    <div class="opt" style="grid-column:1/3">
+      <label>Nom de la route (affiché sur le Bryton)</label>
+      <input type="text" id="routeName" placeholder="ma_route" maxlength="40">
+    </div>
+    <div class="opt">
+      <label>Points max</label>
+      <input type="number" id="maxPts" value="99999" min="100" max="99999">
+    </div>
+  </div>
+  <div class="simp-block">
+    <div class="simp-header">
+      <label>Simplification</label>
+      <div class="toggle-group">
+        <button class="tgl active" data-mode="none">Aucune</button>
+        <button class="tgl" data-mode="rdp">RDP</button>
+        <button class="tgl" data-mode="uniform">Uniforme</button>
+      </div>
+    </div>
+    <div class="simp-detail" id="detail-rdp">
+      <div class="slider-row">
+        <label>Tolérance RDP</label>
+        <input type="range" id="rdpSlider" min="1" max="30" value="3" step="1">
+        <span class="sv2" id="rdpVal">3 m</span>
+      </div>
+    </div>
+    <div class="simp-detail" id="detail-uniform">
+      <div class="slider-row">
+        <label>Garder 1 point sur N</label>
+        <input type="range" id="stepSlider" min="2" max="20" value="2" step="1">
+        <span class="sv2" id="stepVal">1/2</span>
+      </div>
+    </div>
+    <div class="preview-bar"><div class="preview-fill" id="previewFill" style="width:100%"></div></div>
+    <div class="preview-label" id="previewLabel">— points encodés</div>
+  </div>
+  <button class="btn" id="convertBtn" disabled>Convertir</button>
+</div>
+
+<div class="card output-section" id="outputCard">
+  <div class="stitle">Résultat</div>
+  <div class="file-tree" id="fileTree"></div>
+  <div id="climbSummary" style="display:none;margin-bottom:14px;">
+    <div class="stitle" style="margin-bottom:8px;">Ascensions encodées</div>
+    <div class="climb-list" id="climbList"></div>
+  </div>
+  <button class="btn" id="dlBtn">⬇ Télécharger le .zip</button>
+  <div class="transfer-section">
+    <button class="transfer-btn" id="transferBtn" disabled>
+      <span>⚡</span> Copier directement sur le Bryton (USB)
+    </button>
+    <div class="transfer-status" id="transferStatus"></div>
+  </div>
+  <div class="notice" style="margin-top:12px">
+    <strong>Installation manuelle :</strong><br>
+    Dézipper → copier le <strong>dossier</strong> <code>&lt;nom&gt;/</code> et les <strong>3 fichiers</strong>
+    <code>&lt;nom&gt;.smy</code> <code>&lt;nom&gt;.tinfo</code> <code>&lt;nom&gt;.track</code>
+    dans <code>Tracks\</code> sur le Bryton (USB mass storage).<br>
+    <span id="transferNote">Le bouton ⚡ ci-dessus détecte automatiquement le Bryton si branché.</span>
+  </div>
+</div>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
