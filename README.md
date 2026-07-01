@@ -57,6 +57,162 @@ Licensed under the [MIT License](LICENSE).
 
 ---
 
+## Format binaire détaillé
+
+Tous les entiers sont **Little Endian** (octet de poids faible en premier).
+
+### `.smy` — 68 octets fixes
+
+Résumé de la route, lu en premier par le Bryton pour afficher la liste des itinéraires.
+
+```
+Offset  Taille  Type       Contenu
+00      2       uint16     version = 1
+02      2       uint16     nb_points
+04      4       int32      lat_max × 1 000 000
+08      4       int32      lat_min × 1 000 000
+12      4       int32      lon_max × 1 000 000
+16      4       int32      lon_min × 1 000 000
+20      4       int32      distance totale (m)
+24      4       int32      inconnu (= 1 638 732 dans tous les fichiers officiels)
+28      32      —          zéros
+60      4       int32      D+ (m)
+64      4       int32      D− = toujours 0 (l'appli officielle ne remplit pas ce champ)
+```
+
+Exemple réel (100K officiel) :
+```
+01 00  54 3C  30 D2 9D 02  54 AD 99 02  11 C9 3B 00  A1 0E 3A 00
+       ↑      ↑            ↑            ↑            ↑
+    15444   43.775°N     43.626°N     3.885°E      3.806°E
+
+5E 82 01 00  4C 01 19 00  00…(32 zéros)…00  87 04 00 00  00 00 00 00
+↑            ↑                               ↑            ↑
+98910m      inconnu                        D+=1159m     D-=0
+```
+
+---
+
+### `.track` — N × 16 octets
+
+Un enregistrement par point GPS. Fichier principal — toute la trace y est.
+
+```
+Offset  Taille  Type    Contenu
+00      4       int32   lat × 1 000 000
+04      4       int32   lon × 1 000 000
+08      2       uint16  altitude (m)
+10      1       int8    pente locale (%) — moyenne glissante sur 200m
+11      5       —       zéros
+```
+
+Exemple réel (points 0 et 4 du 100K) :
+```
+pt0  54 AD 99 02  9D 95 3B 00  1F 00  FF  00 00 00 00 00
+     ↑            ↑            ↑      ↑
+  43.626°N     3.906°E       31m    -1%
+
+pt4  96 AD 99 02  98 95 3B 00  1F 00  FF  00 00 00 00 00
+     ↑
+  43.626°N (+4m Nord vs pt0)
+```
+
+`FF` en int8 signé = -1. Pentes : `00`=0%, `0A`=+10%, `F6`=-10%, `7F`=+127% max.
+
+---
+
+### `.tinfo` — N × 88 octets (N paires par montée)
+
+Index des montées. Stocké en paires : un record "début" + un record "fin" par montée.
+Chaque record fait 44 octets — seuls les 4 premiers octets comptent, le reste est à zéro.
+
+```
+Offset  Taille  Type    Contenu
+00      4       uint32  (0x00BE << 16) | ptIdx  → début de montée
+                        (0x00BF << 16) | ptIdx  → fin de montée
+04      40      —       zéros
+```
+
+Exemple réel (5 montées du 100K) :
+```
+rec0  DE 04 BE 00  → 0x00BE04DE → flag=0xBE (début), ptIdx=0x04DE=1246
+rec1  93 05 BF 00  → 0x00BF0593 → flag=0xBF (fin),   ptIdx=0x0593=1427
+rec2  26 0A BE 00  →                                  ptIdx=2598
+rec3  BE 10 BF 00  →                                  ptIdx=4286
+...   (5 paires = 10 records = 440 octets)
+```
+
+---
+
+### `list.junc` / `list2.junc` — N × 12 octets + sentinel
+
+Intersections OSM que la route traverse. Les deux fichiers sont identiques.
+Le dernier record est un sentinel `FF×12`.
+
+```
+Offset  Taille  Type    Contenu
+00      4       int32   lat × 1 000 000
+04      4       int32   lon × 1 000 000
+08      2       uint16  ptIdx (point de trace le plus proche)
+10      1       uint8   flag : 0x01 = virage, 0x00 = tout droit
+11      1       uint8   bearing × (256/360)  — 0=Nord, 64=Est, 128=Sud, 192=Ouest
+```
+
+Exemple réel (début du 100K) :
+```
+junc0  D0 AD 99 02  45 95 3B 00  00 00  01  34
+       ↑            ↑            ↑      ↑   ↑
+    43.626°N     3.906°E       pt=0  virage  0x34=52 → 73° (NE)
+
+junc4  F8 AE 99 02  79 8A 3B 00  26 00  01  30
+junc5  F8 AE 99 02  79 8A 3B 00  26 00  01  5A
+       ↑ même carrefour, deux routes qui partent → deux records
+```
+
+Sentinel : `FF FF FF FF FF FF FF FF FF FF FF FF`
+
+---
+
+### `sort1.path` — N × 16 octets
+
+Index spatial : découpe la trace par tuile OSM zoom 13.
+Permet au Bryton de ne charger que les ~500 points de la tuile courante plutôt que les 15 000 de la trace entière.
+
+```
+Offset  Taille  Type    Contenu
+00      4       uint32  start_ptIdx
+04      4       uint32  end_ptIdx
+08      4       uint32  tile_id = (tile_y_z13 << 16) | tile_x_z13
+12      4       uint32  0
+```
+
+Les segments se **chevauchent d'un point** : `end` du segment N = `start` du segment N+1 − 1.
+
+Formule tuile OSM zoom 13 :
+```
+tx = floor((lon + 180) / 360 × 8192)
+ty = floor((1 − ln(tan(lat_rad) + 1/cos(lat_rad)) / π) / 2 × 8192)
+```
+
+Exemple réel (100K — 41 segments, tx ∈ [4182,4185], ty ∈ [2982,2990]) :
+```
+seg0   00 00 00 00  F9 01 00 00  58 10 AE 0B  00 00 00 00
+       ↑            ↑            ↑
+     start=0      end=505     tile=(tx=4184, ty=2990)
+
+seg1   F8 01 00 00  0F 04 00 00  58 10 AD 0B  00 00 00 00
+       ↑
+     start=504  ← overlap d'1 point avec seg0
+```
+
+---
+
+### `dupli.track`
+
+Copie octet-à-octet du `.track` racine. Rôle exact inconnu — le firmware plante sans lui.
+
+---
+
 ## Philosophie du format — tout est pré-calculé
 
 Le Bryton 460 embarque un processeur ARM bas de gamme (quelques dizaines de MHz, ~1 Mo de RAM).
