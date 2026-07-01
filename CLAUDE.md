@@ -30,10 +30,25 @@ L'utilisateur est sur PC/Nokia, sans l'appli Bryton officielle.
 | 60 | int32 | D+ (m) |
 | 64 | int32 | D− = **toujours 0** dans l'officiel |
 
-### `.tinfo` — n × 2 × 44 octets
+### `.tinfo` — deux formats selon l'origine de la route
+
+**Format A — import GPX** (ce qu'on génère) : n × 2 × 44 octets
 - Chaque record : uint32 au début, reste = zéros
 - `0x00BE????` = début montée, `0x00BF????` = fin montée
 - Bits 0–15 = ptIdx dans le .track
+
+**Format B — route planifiée à la main dans l'appli Bryton** (`voiceTrip`) : n × 44 octets
+| Offset | Type | Contenu |
+|--------|------|---------|
+| 0–1 | uint16 LE | ptIdx dans le .track |
+| 2 | uint8 | code instruction (0x01=départ, 0x02=tout droit, 0x0D=droite, 0x0E=gauche, 0xD2-D4=rond-point…) |
+| 3 | uint8 | zéro |
+| 4–7 | uint32 | distance jusqu'au prochain virage (m ?) |
+| 8–11 | uint32 | même distance dans une autre unité (≈ ×200) |
+| 12–43 | UTF-8 | nom de rue null-paddé sur 32 octets |
+
+Ce format permet la **navigation vocale avec annonce des noms de rue**.
+Nécessiterait un service de routage (OSRM/Valhalla) + geocoding (Nominatim) pour être généré depuis un GPX — hors scope actuel.
 
 ### `.climb` — n × 16 octets (float32 × 4)
 `[start_dist_m, longueur_m, D+_m, grade_fraction]`
@@ -58,7 +73,6 @@ Pas de sentinel. Source = intersections OSM (noeuds référencés par 2+ ways hi
 | 12–15 | uint32 | 0 |
 
 41 segments pour le 100K (15 444 points). Segments consécutifs se chevauchent d'1 point.
-**Non encore implémenté** — actuellement 16 octets hardcodés.
 
 ---
 
@@ -73,7 +87,7 @@ Pas de sentinel. Source = intersections OSM (noeuds référencés par 2+ ways hi
 | `.climb` | ✅ Correct | structure confirmée |
 | Climb detection | 🔶 Partiel | 1re montée exacte, autres ≈ ±2km |
 | `list.junc` | 🔶 Partiel | OSM Overpass branché, rayon 25m → 162 intersections (officiel : 733) |
-| `sort1.path` | 🔴 Faux | 16B hardcodés au lieu de N×16B avec tiles z=13 |
+| `sort1.path` | ✅ Correct | N×16B avec tiles z=13, validé sur 100K (41 segments) |
 
 ---
 
@@ -87,6 +101,14 @@ data_references/
     output_mytool/               ← sortie de l'outil (pour diff)
   bales/
     bales.gpx                    ← trace Strava Pyrénées ~1200m alt départ
+    output_brytonofficial/
+  foret_clapiers/
+    foret_clapliers.gpx          ← trace courte, région Montpellier
+    output_brytonofficial/
+  official-route-by-hand/
+    voiceTrip.*                  ← route planifiée à la main dans l'appli Bryton
+                                   → .tinfo format B (voice navigation + noms de rue)
+                                   → 402 points, 4 tuiles z=13
 ```
 
 ---
@@ -94,14 +116,14 @@ data_references/
 ## Prochains chantiers
 
 1. **`list.junc`** : augmenter le rayon Overpass (25m → 50m) pour aller vers ~700 intersections
-2. **`sort1.path`** : implémenter l'index de segments tile OSM z=13
-3. **Climb detection** : algo grade-based prometteur mais pas convergé
-4. **D- UI** : l'affichage montre encore D- calculé — à masquer (mettre 0 comme l'officiel)
+2. **Climb detection** : algo grade-based prometteur mais pas convergé
+3. **D- UI** : l'affichage montre encore D- calculé — à masquer (mettre 0 comme l'officiel)
+4. **`.tinfo` format B** (hors scope actuel) : voice navigation depuis GPX nécessiterait OSRM + Nominatim
 
 ---
 
 ## Versioning
 
-- Fichier de travail : `proto_html/bryton.html`
-- Référence figée : `proto_html/bryton_v0.1.html` (ne pas modifier)
+- Fichier de travail v0.3 : `src/` (modules ES) + `index.html` → `npm run build` → `dist/index.html`
+- Archive proto : `proto_html/bryton.html` (v0.2), `proto_html/bryton_v0.1.html` (ne pas modifier)
 - Tags git : `v0.1`

@@ -54,8 +54,11 @@ export function updateManualClimbList(manualClimbs, dists, onRemove) {
       <span style="color:var(--text)">+${Math.round(c.gain)}m</span>
       <span style="color:var(--accent2);margin:0 6px;font-weight:600;">${(c.grade*100).toFixed(1)}%</span>
       <span style="color:var(--muted)">${(c.length/1000).toFixed(1)}km</span>
-      <button onclick="(${onRemove})(${i})">✕</button>
+      <button data-remove="${i}">✕</button>
     </div>`).join('')
+  div.querySelectorAll('[data-remove]').forEach(btn => {
+    btn.addEventListener('click', () => onRemove(+btn.dataset.remove))
+  })
 }
 
 export function ptIdxAtClientX(clientX, dists) {
@@ -71,6 +74,15 @@ export function ptIdxAtClientX(clientX, dists) {
 export function initProfileInteractions(getState, setState) {
   const svg = document.getElementById('profileSvg')
   const addBtn = document.getElementById('addClimbBtn')
+
+  function removeClimb(i) {
+    const c2 = [...getState().manualClimbs]
+    c2.splice(i, 1)
+    setState({ manualClimbs: c2 })
+    const s2 = getState()
+    drawProfile(s2.pts, s2.dists, s2.manualClimbs, null, null, null)
+    updateManualClimbList(s2.manualClimbs, s2.dists, removeClimb)
+  }
 
   addBtn.addEventListener('click', () => {
     const { pts, dists } = getState()
@@ -136,13 +148,7 @@ export function initProfileInteractions(getState, setState) {
         svg.classList.remove('adding')
         document.getElementById('profileHint').textContent = ''
         const ns = getState()
-        updateManualClimbList(ns.manualClimbs, ns.dists, i => {
-          const c2 = [...getState().manualClimbs]; c2.splice(i, 1)
-          setState({ manualClimbs: c2 })
-          const s2 = getState()
-          drawProfile(s2.pts, s2.dists, s2.manualClimbs, null, null, null)
-          updateManualClimbList(s2.manualClimbs, s2.dists, () => {})
-        })
+        updateManualClimbList(ns.manualClimbs, ns.dists, removeClimb)
         drawProfile(ns.pts, ns.dists, ns.manualClimbs, null, null, null)
       } else {
         setState({ addingClimb: false, climbStartPt: null })
@@ -154,7 +160,7 @@ export function initProfileInteractions(getState, setState) {
     if (s.editHandle) {
       setState({ editHandle: null })
       const ns = getState()
-      updateManualClimbList(ns.manualClimbs, ns.dists, () => {})
+      updateManualClimbList(ns.manualClimbs, ns.dists, removeClimb)
     }
   })
 }

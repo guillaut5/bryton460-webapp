@@ -16,9 +16,28 @@ const $ = id => document.getElementById(id)
 
 // ── État global ──────────────────────────────────────────────────────────────
 const state = {
-  parsedPoints: null, gpxName: null, zipBlob: null, generatedFiles: null,
-  manualClimbs: [], addingClimb: false, climbStartPt: null, editHandle: null,
-  pts: null, dists: null, simpMode: 'none',
+  // Données brutes du GPX chargé (avant simplification)
+  parsedPoints: null,   // [lat, lon, ele][] — sortie de parseGPX
+  gpxName: null,        // nom du fichier sans extension → nom de la route Bryton
+
+  // Résultat de la dernière conversion (bouton Convertir)
+  generatedFiles: null, // Map<filename, ArrayBuffer> prête à zipper
+  zipBlob: null,        // Blob du .zip téléchargeable
+
+  // Points actifs après simplification + distances cumulées
+  pts: null,            // [lat, lon, ele][] — envoyés aux encodeurs
+  dists: null,          // distances cumulées en mètres, dists[0]=0
+
+  // Mode de simplification sélectionné dans l'UI
+  simpMode: 'none',     // 'none' | 'rdp' | 'step' | 'max'
+
+  // Montées manuelles dessinées sur le profil
+  manualClimbs: [],     // {startPt, endPt, start, length, gain, grade}[]
+
+  // État de l'interaction "ajouter une montée" sur le SVG
+  addingClimb: false,   // true = mode dessin actif (curseur crosshair)
+  climbStartPt: null,   // ptIdx du premier clic (en attente du mouseup)
+  editHandle: null,     // {idx, edge:'s'|'e'} — handle de drag en cours
 }
 const getState = () => state
 const setState = patch => Object.assign(state, patch)

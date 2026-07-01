@@ -1,3 +1,25 @@
+// ════════════════════════════════════════════════════════════════
+// list.junc / list2.junc — intersections et virages
+//
+// Rôle sur le device : navigation turn-by-turn. Quand ptIdx courant
+// dépasse le ptIdx d'une intersection, le device affiche une flèche
+// directionnelle et émet un bip.
+//
+// Le bearing (uint8 0–255) est précalculé côté PC : le device fait un
+// simple lookup dans une table de 8 ou 16 icônes de flèche. Pas de
+// atan2 ni de division sur le device.
+//
+// list.junc et list2.junc sont identiques — la duplication est probablement
+// un vestige de firmware (cache primaire/secondaire, ou compatibilité
+// entre deux versions du firmware).
+//
+// Sentinel FF×12 en fin de fichier : marque la fin de liste sans stocker
+// le nombre de records (pas de header dans ce format).
+// ════════════════════════════════════════════════════════════════
+
+// Interroge Overpass API pour trouver les intersections OSM le long de la trace.
+// Retourne [{lat, lon}] — noeuds référencés par 2+ ways highway dans un rayon de 25m.
+// Échantillonne la trace à ~300 points pour limiter la taille de la requête Overpass.
 export async function fetchOSMJunctions(pts) {
   const n = pts.length;
   const step = Math.max(1, Math.ceil(n / 300));
@@ -34,9 +56,21 @@ node(w.ways)->.allnodes;
     .map(id => ({ lat: nodePos[id][0], lon: nodePos[id][1] }));
 }
 
+// Format list.junc — N × 12 octets + sentinel FF×12, Little Endian.
+// Chaque record décrit une intersection que la route traverse.
+//   +0  int32   lat × 1e6
+//   +4  int32   lon × 1e6
+//   +8  uint16  ptIdx (point de trace le plus proche), encodé en 2 × uint8 LE
+//   +10 uint8   flag : 1 = virage, 0 = tout droit
+//   +11 uint8   bearing × (256/360) — 0=Nord, 64=Est, 128=Sud, 192=Ouest
+//               Le device fait un lookup de flèche sur cet octet, pas de trigonométrie.
+//
+// Si junctions=null (pas d'appel Overpass), fallback : détection par changement d'angle ≥25°
+// sur une fenêtre de 50m, espacés d'au moins 100m pour éviter les doublons.
 export function encodeJunc(junctions, pts, dists) {
   const n = pts.length;
 
+  // Azimut de la trace au point i, calculé sur une fenêtre de 50m (formule forward azimuth).
   function bearingAt(i) {
     const WM = 50;
     let a = i; while (a > 0 && dists[i]-dists[a] < WM) a--;
@@ -62,6 +96,7 @@ export function encodeJunc(junctions, pts, dists) {
     junctions = turns;
   }
 
+  // Recherche du point de trace le plus proche par distance Manhattan (rapide, suffisant).
   function nearestPt(lat, lon) {
     let best = 0, bestD = Infinity;
     for (let i = 0; i < n; i++) {

@@ -1,3 +1,36 @@
+// ════════════════════════════════════════════════════════════════
+// sort1.path — index spatial par tuile OSM zoom 13
+//
+// Rôle sur le device : filtre grossier pour la détection "sur le trajet".
+// Sans ce fichier, comparer la position GPS aux ~15 000 points du .track
+// à chaque seconde serait trop lent pour un CPU ARM basse fréquence.
+//
+// Fonctionnement supposé :
+//   1. GPS → calcule la tuile z=13 courante (même formule Mercator)
+//   2. Cherche dans sort1.path le segment dont tile_id correspond
+//   3. Charge uniquement les ~500 points de ce segment depuis le .track
+//      (accès direct : offset = start_ptIdx × 16)
+//   4. Compare la position GPS à ces ~500 points → "sur le trajet" ou non
+//
+// Zoom 13 = tuiles ~4.8km × 4.8km à la latitude de la France.
+// Assez petit pour que ~500 points tiennent en RAM, assez grand pour que
+// la route reste dans la même tuile pendant ~1 min de roulage.
+// ════════════════════════════════════════════════════════════════
+
+// Format sort1.path — N segments × 16 octets, Little Endian.
+// Découpe la trace par tuile OSM zoom 13 : le Bryton charge uniquement les points
+// de la tuile courante (~500 pts) plutôt que toute la trace (~15 000 pts).
+// Les segments se chevauchent d'un point : end[i] == start[i+1] - 1.
+//
+// Structure d'un record (16 octets) :
+//   +0  uint32  start_ptIdx
+//   +4  uint32  end_ptIdx
+//   +8  uint32  tile_id = (ty_z13 << 16) | tx_z13
+//   +12 uint32  0
+//
+// Formule tuile Mercator zoom z=13 (N = 2^13 = 8192 tuiles par axe) :
+//   tx = floor((lon + 180) / 360 × N)
+//   ty = floor((1 − ln(tan(lat) + 1/cos(lat)) / π) / 2 × N)
 export function encodeSortPath(pts) {
   const Z = 13, N = 1 << Z;
   function tileOf(lat, lon) {
