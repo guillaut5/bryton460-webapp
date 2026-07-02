@@ -51,10 +51,11 @@ export function encodeTinfo(climbs) {
 // navSteps : [{ptIdx, code, val4, name}] — sortie de matchRoute()
 // totalDistM : distance totale de la trace en mètres
 // climbs : [{startPt, endPt}]
-export function encodeTinfoNav(navSteps, totalDistM, climbs) {
+// totalPts : nombre total de points dans le .track (pour lastPtIdx quand navSteps est vide)
+export function encodeTinfoNav(navSteps, totalDistM, climbs, totalPts = 0) {
   const enc = new TextEncoder()
   const sorted = [...navSteps].sort((a, b) => a.ptIdx - b.ptIdx)
-  const lastPtIdx = sorted.length ? sorted[sorted.length-1].ptIdx : 0
+  const lastPtIdx = sorted.length ? sorted[sorted.length-1].ptIdx : Math.max(0, totalPts - 1)
   const firstName = sorted.find(s => s.code === 0x01)?.name || sorted[0]?.name || ''
   const lastName  = sorted[sorted.length-1]?.name || ''
 

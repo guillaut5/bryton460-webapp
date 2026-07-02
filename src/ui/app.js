@@ -190,8 +190,13 @@ $('convertBtn').addEventListener('click', async () => {
       const steps = await matchRoute(pts, dists, (done, total) => {
         osrmStatus.textContent = `OSRM : chunk ${done}/${total}…`
       })
-      tinfoBuf = encodeTinfoNav(steps, Math.round(totalDist(pts)), climbs)
-      osrmStatus.textContent = `✓ ${steps.length} instructions de navigation`
+      if (steps.length > 0) {
+        tinfoBuf = encodeTinfoNav(steps, Math.round(totalDist(pts)), climbs, pts.length)
+        osrmStatus.textContent = `✓ ${steps.length} instructions de navigation`
+      } else {
+        osrmStatus.textContent = `⚠ OSRM : aucune instruction reçue — fallback montées seules`
+        tinfoBuf = encodeTinfo(climbs)
+      }
     } catch (e) {
       osrmStatus.textContent = `⚠ OSRM indisponible — fallback montées seules`
       tinfoBuf = encodeTinfo(climbs)
