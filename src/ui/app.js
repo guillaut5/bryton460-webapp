@@ -192,9 +192,16 @@ $('convertBtn').addEventListener('click', async () => {
       })
       if (steps.length > 0) {
         tinfoBuf  = encodeTinfoNav(steps, Math.round(totalDist(pts)), climbs, pts.length)
-        tinfoLabel = `${steps.length} instructions nav`
+        const nav = steps.filter(s => s.code !== 0x01 && s.code !== 0x21)
+        const cnt = c => steps.filter(s => s.code === c).length
+        const rpt = cnt(0xD2)+cnt(0xD3)+cnt(0xD4)
+        tinfoLabel = `${nav.length} virages nav`
         if (climbs.length) tinfoLabel += ` · ${climbs.length} montées`
-        osrmStatus.textContent = `✓ ${steps.length} instructions de navigation`
+        osrmStatus.textContent =
+          `✓ ${nav.length} virages — ` +
+          `↻ droite ${cnt(0x0D)}  ↺ gauche ${cnt(0x0E)}  → tout droit ${cnt(0x02)}` +
+          (cnt(0x03) ? `  ± léger ${cnt(0x03)}` : '') +
+          (rpt       ? `  ⟳ rond-pt ${rpt}` : '')
       } else {
         osrmStatus.textContent = `⚠ OSRM : aucune instruction — fallback montées seules`
         tinfoBuf  = encodeTinfo(climbs)
