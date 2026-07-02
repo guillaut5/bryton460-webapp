@@ -5,7 +5,8 @@ import { applySimp } from '../simplify.js'
 import { detectClimbs } from '../climbs.js'
 import { computeGrades, encodeTrack } from '../encoders/track.js'
 import { encodeSmy } from '../encoders/smy.js'
-import { encodeTinfo } from '../encoders/tinfo.js'
+import { encodeTinfo, encodeTinfoNav } from '../encoders/tinfo.js'
+import { matchRoute } from '../api/osrm.js'
 import { encodeJunc } from '../encoders/junc.js'
 import { encodeSortPath } from '../encoders/path.js'
 import { fetchElevations } from '../api/elevation.js'
@@ -178,9 +179,27 @@ $('convertBtn').addEventListener('click', async () => {
   const grades   = computeGrades(pts, dists)
   const trackBuf = encodeTrack(pts, grades)
   const smyBuf   = encodeSmy(pts, climbs)
-  const tinfoBuf = encodeTinfo(climbs)
   const pathBuf  = encodeSortPath(pts)
   const juncBuf  = encodeJunc(null, pts, dists)
+
+  let tinfoBuf
+  if ($('osrmChk').checked) {
+    const osrmStatus = $('osrmStatus')
+    osrmStatus.textContent = 'OSRM : connexion…'
+    try {
+      const steps = await matchRoute(pts, dists, (done, total) => {
+        osrmStatus.textContent = `OSRM : chunk ${done}/${total}…`
+      })
+      tinfoBuf = encodeTinfoNav(steps, Math.round(totalDist(pts)), climbs)
+      osrmStatus.textContent = `✓ ${steps.length} instructions de navigation`
+    } catch (e) {
+      osrmStatus.textContent = `⚠ OSRM indisponible — fallback montées seules`
+      tinfoBuf = encodeTinfo(climbs)
+    }
+  } else {
+    $('osrmStatus').textContent = ''
+    tinfoBuf = encodeTinfo(climbs)
+  }
 
   const generatedFiles = {
     [name+'.smy']:   smyBuf,

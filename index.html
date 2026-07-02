@@ -77,6 +77,13 @@
     <div class="preview-bar"><div class="preview-fill" id="previewFill" style="width:100%"></div></div>
     <div class="preview-label" id="previewLabel">— points encodés</div>
   </div>
+  <div style="margin:10px 0 4px;display:flex;align-items:center;gap:8px;">
+    <input type="checkbox" id="osrmChk" style="width:14px;height:14px;cursor:pointer;accent-color:var(--accent2)">
+    <label for="osrmChk" style="font-size:.78rem;color:var(--muted);cursor:pointer;">
+      Navigation turn-by-turn via OSRM <span style="opacity:.5">(~20 req pour 100 km · routes bitumées uniquement)</span>
+    </label>
+  </div>
+  <div id="osrmStatus" style="font-size:.72rem;color:var(--accent2);min-height:1.2em;margin-bottom:6px;"></div>
   <button class="btn" id="convertBtn" disabled>Convertir</button>
 </div>
 
