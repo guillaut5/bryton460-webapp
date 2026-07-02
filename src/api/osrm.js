@@ -148,6 +148,13 @@ export async function matchRoute(pts, dists, onProgress) {
       name:  s.name,
     }))
     .sort((a, b) => a.ptIdx - b.ptIdx)
-  console.log(`[OSRM] résultat : ${result.length} instructions (${result.filter(s=>s.code===0x0D).length} droite, ${result.filter(s=>s.code===0x0E).length} gauche, ${result.filter(s=>s.code===0x02).length} tout droit)`)
+  const cnt = code => result.filter(s => s.code === code).length
+  const nav = result.filter(s => s.code !== 0x01 && s.code !== 0x21)
+  console.log(
+    `[OSRM] résultat : ${result.length} steps bruts → ${nav.length} virages encodés\n` +
+    `        ↻ droite ${cnt(0x0D)}  ↺ gauche ${cnt(0x0E)}  → tout droit ${cnt(0x02)}  ` +
+    `± léger ${cnt(0x03)}  ⟳ rond-pt ${cnt(0xD2)+cnt(0xD3)+cnt(0xD4)}  ` +
+    `[départ ${cnt(0x01)}  arrivée ${cnt(0x21)}  autre ${nav.length - cnt(0x02)-cnt(0x03)-cnt(0x0D)-cnt(0x0E)-cnt(0x05)-cnt(0x06)-cnt(0xD2)-cnt(0xD3)-cnt(0xD4)}]`
+  )
   return result
 }
