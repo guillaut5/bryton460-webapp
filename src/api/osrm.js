@@ -5,16 +5,18 @@
 // plus court chemin entre waypoints. Sans ça, OSRM recalcule son
 // propre itinéraire → instructions incorrectes (droit≠droit, etc.)
 //
-// Le 400 précédent venait d'oscillations GPS (points en double dans
-// l'échantillon). Correctifs :
-//   - échantillon à 100m (moins de bruit que 50m)
-//   - déduplication des points < 15m consécutifs
-//   - timestamps à 18s/pt (~20 km/h sur 100m)
-//   - radiuses=50 pour tolérance de snap
+// Limites observées sur le serveur public (router.project-osrm.org) :
+//   - max ~10 coords par requête /match ("Too many trace coordinates" à 30)
+//   - max radius ~25m par point ("Radius search size too large" à 50m)
+// Paramètres actuels :
+//   - échantillon à 200m → ~55 chunks pour 100km (~60s)
+//   - déduplication des points < 15m (oscillations GPS)
+//   - timestamps à 36s/pt (~20 km/h sur 200m)
+//   - radiuses=20m
 // ════════════════════════════════════════════════════════════════
 
 const OSRM    = 'https://router.project-osrm.org/match/v1/driving'
-const CHUNK   = 30    // /match serveur public : limite ~100 pts mais URL trop longue au-delà de 30
+const CHUNK   = 10    // /match serveur public : ~10 pts max (30 → "Too many trace coordinates")
 const RATE_MS = 1100  // délai entre requêtes (bonne pratique serveur public)
 
 // Indices des points échantillonnés à ~interval mètres d'intervalle.
@@ -71,10 +73,10 @@ function toCode(type, modifier, exit) {
 
 async function fetchChunk(chunkPts) {
   const coords  = chunkPts.map(p => `${p[1].toFixed(6)},${p[0].toFixed(6)}`).join(';')
-  // 18s entre points (~100m à 20 km/h). Requis par OSRM match.
+  // 36s entre points (~200m à 20 km/h). Requis par OSRM match.
   const t0      = Math.floor(Date.now() / 1000)
-  const ts      = chunkPts.map((_, i) => t0 + i * 18).join(';')
-  const radii   = chunkPts.map(() => '50').join(';')
+  const ts      = chunkPts.map((_, i) => t0 + i * 36).join(';')
+  const radii   = chunkPts.map(() => '20').join(';')  // 50 → "Radius search size too large"
   const url     = `${OSRM}/${coords}?steps=true&overview=false&annotations=false&timestamps=${ts}&radiuses=${radii}&tidy=true`
 
   const resp = await fetch(url, { signal: AbortSignal.timeout(30000) })
@@ -107,7 +109,7 @@ async function fetchChunk(chunkPts) {
 // Retourne [{ptIdx, code, val4, name}] trié par ptIdx.
 // onProgress(done, total) appelé après chaque chunk.
 export async function matchRoute(pts, dists, onProgress) {
-  const idxs    = sampleIdxs(dists, 100)
+  const idxs    = sampleIdxs(dists, 200)  // 200m → ~55 chunks pour 100km
   const sampled = dedup(idxs.map(i => pts[i]))
 
   // Chunks avec 1 point de recouvrement pour continuité entre chunks.
