@@ -140,7 +140,9 @@ export async function matchRoute(pts, dists, onProgress) {
     if (c < chunks.length - 1) await new Promise(r => setTimeout(r, RATE_MS))
   }
 
+  // depart/arrive de chaque leg OSRM sont du bruit (encodeTinfoNav génère les siens).
   const result = allSteps
+    .filter(s => s.type !== 'depart' && s.type !== 'arrive')
     .map(s => ({
       ptIdx: nearestPt(s.location[0], s.location[1], pts),
       code:  toCode(s.type, s.modifier, s.exit),
@@ -149,12 +151,13 @@ export async function matchRoute(pts, dists, onProgress) {
     }))
     .sort((a, b) => a.ptIdx - b.ptIdx)
   const cnt = code => result.filter(s => s.code === code).length
-  const nav = result.filter(s => s.code !== 0x01 && s.code !== 0x21)
+  const rpt = cnt(0xD2)+cnt(0xD3)+cnt(0xD4)
   console.log(
-    `[OSRM] résultat : ${result.length} steps bruts → ${nav.length} virages encodés\n` +
-    `        ↻ droite ${cnt(0x0D)}  ↺ gauche ${cnt(0x0E)}  → tout droit ${cnt(0x02)}  ` +
-    `± léger ${cnt(0x03)}  ⟳ rond-pt ${cnt(0xD2)+cnt(0xD3)+cnt(0xD4)}  ` +
-    `[départ ${cnt(0x01)}  arrivée ${cnt(0x21)}  autre ${nav.length - cnt(0x02)-cnt(0x03)-cnt(0x0D)-cnt(0x0E)-cnt(0x05)-cnt(0x06)-cnt(0xD2)-cnt(0xD3)-cnt(0xD4)}]`
+    `[OSRM] résultat : ${result.length} virages` +
+    ` — ↻ droite ${cnt(0x0D)}  ↺ gauche ${cnt(0x0E)}  → tout droit ${cnt(0x02)}` +
+    (cnt(0x03) ? `  ± léger ${cnt(0x03)}` : '') +
+    (rpt       ? `  ⟳ rond-pt ${rpt}` : '') +
+    (cnt(0x06) ? `  ⑂ bifurc. ${cnt(0x06)}` : '')
   )
   return result
 }
