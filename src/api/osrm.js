@@ -121,22 +121,26 @@ export async function matchRoute(pts, dists, onProgress) {
 
   const seen = new Set()
   const allSteps = []
+  console.log(`[OSRM] ${chunks.length} chunks · ${sampled.length} pts · 200m/pt`)
 
   for (let c = 0; c < chunks.length; c++) {
     if (onProgress) onProgress(c + 1, chunks.length)
     try {
       const steps = await fetchChunk(chunks[c])
+      let added = 0
       for (const s of steps) {
         const key = `${s.location[0].toFixed(5)},${s.location[1].toFixed(5)},${s.type}`
-        if (!seen.has(key)) { seen.add(key); allSteps.push(s) }
+        if (!seen.has(key)) { seen.add(key); allSteps.push(s); added++ }
       }
+      console.log(`[OSRM] ✓ chunk ${c+1}/${chunks.length} — ${steps.length} steps (+${added} nouveaux)`)
     } catch (e) {
-      console.warn('OSRM chunk', c, 'failed:', e.message)
+      const reason = e.message.includes('NoSegment') ? 'hors réseau routier' : e.message.slice(0, 60)
+      console.warn(`[OSRM] ✗ chunk ${c+1}/${chunks.length} — ${reason}`)
     }
     if (c < chunks.length - 1) await new Promise(r => setTimeout(r, RATE_MS))
   }
 
-  return allSteps
+  const result = allSteps
     .map(s => ({
       ptIdx: nearestPt(s.location[0], s.location[1], pts),
       code:  toCode(s.type, s.modifier, s.exit),
@@ -144,4 +148,6 @@ export async function matchRoute(pts, dists, onProgress) {
       name:  s.name,
     }))
     .sort((a, b) => a.ptIdx - b.ptIdx)
+  console.log(`[OSRM] résultat : ${result.length} instructions (${result.filter(s=>s.code===0x0D).length} droite, ${result.filter(s=>s.code===0x0E).length} gauche, ${result.filter(s=>s.code===0x02).length} tout droit)`)
+  return result
 }

@@ -182,7 +182,7 @@ $('convertBtn').addEventListener('click', async () => {
   const pathBuf  = encodeSortPath(pts)
   const juncBuf  = encodeJunc(null, pts, dists)
 
-  let tinfoBuf
+  let tinfoBuf, tinfoLabel
   if ($('osrmChk').checked) {
     const osrmStatus = $('osrmStatus')
     osrmStatus.textContent = 'OSRM : connexion…'
@@ -191,19 +191,24 @@ $('convertBtn').addEventListener('click', async () => {
         osrmStatus.textContent = `OSRM : chunk ${done}/${total}…`
       })
       if (steps.length > 0) {
-        tinfoBuf = encodeTinfoNav(steps, Math.round(totalDist(pts)), climbs, pts.length)
+        tinfoBuf  = encodeTinfoNav(steps, Math.round(totalDist(pts)), climbs, pts.length)
+        tinfoLabel = `${steps.length} instructions nav`
+        if (climbs.length) tinfoLabel += ` · ${climbs.length} montées`
         osrmStatus.textContent = `✓ ${steps.length} instructions de navigation`
       } else {
-        osrmStatus.textContent = `⚠ OSRM : aucune instruction reçue — fallback montées seules`
-        tinfoBuf = encodeTinfo(climbs)
+        osrmStatus.textContent = `⚠ OSRM : aucune instruction — fallback montées seules`
+        tinfoBuf  = encodeTinfo(climbs)
+        tinfoLabel = climbs.length ? climbs.length + ' montées indexées' : 'vide'
       }
     } catch (e) {
       osrmStatus.textContent = `⚠ OSRM indisponible — fallback montées seules`
-      tinfoBuf = encodeTinfo(climbs)
+      tinfoBuf  = encodeTinfo(climbs)
+      tinfoLabel = climbs.length ? climbs.length + ' montées indexées' : 'vide'
     }
   } else {
     $('osrmStatus').textContent = ''
-    tinfoBuf = encodeTinfo(climbs)
+    tinfoBuf  = encodeTinfo(climbs)
+    tinfoLabel = climbs.length ? climbs.length + ' montées indexées' : 'vide'
   }
 
   const generatedFiles = {
@@ -234,7 +239,7 @@ $('convertBtn').addEventListener('click', async () => {
   $('fileTree').innerHTML = `
 <span class="dir">📁 Tracks\\</span>
 <br><span class="file">  ├ ${name}.smy</span><span class="fsize">${fmt(smyBuf.byteLength)}</span>
-<br><span class="file">  ├ ${name}.tinfo</span><span class="fsize">${fmt(tinfoBuf.byteLength)}${climbs.length ? ' · '+climbs.length+' montées indexées' : ' · vide'}</span>
+<br><span class="file">  ├ ${name}.tinfo</span><span class="fsize">${fmt(tinfoBuf.byteLength)} · ${tinfoLabel}</span>
 <br><span class="file">  ├ ${name}.track</span><span class="fsize">${fmt(trackBuf.byteLength)} · ${pts.length.toLocaleString('fr')} pts · ${distKm} km${eleStr}</span>
 <br><span class="dir">  └ 📁 ${name}\\</span>
 <br><span class="file">        ├ dupli.track</span><span class="fsize">${fmt(trackBuf.byteLength)}</span>
