@@ -76,6 +76,38 @@ Ouvre `http://localhost:5173` avec hot reload.
 
 ## Release notes
 
+### v0.4 — 2026-07-02
+
+- **Navigation turn-by-turn via OSRM** — Nouvelle option dans l'UI : la trace GPX est
+  soumise au service [OSRM](https://project-osrm.org/) (map matching) pour récupérer
+  les instructions de virage réelles depuis le réseau routier OSM.
+  Génère un `.tinfo` format B avec nom de rue UTF-8, code de direction et distance
+  au prochain virage — lisible par le firmware Bryton comme une route planifiée à la main.
+  Instructions supportées : départ, arrivée, tout droit, léger virage, droite, gauche,
+  virage serré, demi-tour, bifurcation, rond-point (sorties 1/2/3+).
+  Les sections hors réseau routier (pistes cyclables, chemins côtiers) sont ignorées
+  silencieusement — les autres virages restent valides.
+  L'UI affiche la ventilation : `✓ 17 virages — ↻ droite 6  ↺ gauche 2  → tout droit 1`.
+
+- **`.tinfo` format B reverse-engineered** — Analysé sur deux fichiers de référence
+  (`voiceTrip`, `test_route`) : structure hybride nav + montées dans le même format 44 octets.
+  Le fichier généré respecte l'ordre exact : DÉPART (0x01), INFO rue départ (0xFA),
+  virages, INFO distance totale (0xFA), ARRIVÉE (0x21), marqueurs montées (0xBE/0xBF).
+
+- **Refactoring v0.3** — Architecture modules ES (src/), Vite build, Vitest (40 tests),
+  `vite-plugin-singlefile` → `dist/index.html` auto-suffisant (~134 KB).
+
+- **`sort1.path` validé** — Segments par tuile OSM zoom 13, chevauchement d'1 point.
+  Validé sur 100K : 41 segments, tx ∈ [4182,4185], ty ∈ [2982,2990].
+
+- **`list.junc` via Overpass API** — Intersections OSM réelles (rayon 25m),
+  fallback détection par changement d'angle ≥ 25° si Overpass indisponible.
+
+### v0.3 — 2026-06-29
+
+Architecture de développement restructurée en modules ES (src/) avec Vite + Vitest.
+(Voir v0.4 pour les features associées livrées dans cette version.)
+
 ### v0.2 — 2026-06-25
 
 - **`.track` byte 10 : pente locale** — Chaque point encode maintenant la pente en % (int8 signé),
