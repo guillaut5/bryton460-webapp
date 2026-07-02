@@ -14,7 +14,7 @@
 // ════════════════════════════════════════════════════════════════
 
 const OSRM    = 'https://router.project-osrm.org/match/v1/driving'
-const CHUNK   = 80    // points par requête (laisse de la marge URL)
+const CHUNK   = 30    // /match serveur public : limite ~100 pts mais URL trop longue au-delà de 30
 const RATE_MS = 1100  // délai entre requêtes (bonne pratique serveur public)
 
 // Indices des points échantillonnés à ~interval mètres d'intervalle.
