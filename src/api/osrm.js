@@ -109,7 +109,11 @@ async function fetchChunk(chunkPts) {
 // Retourne [{ptIdx, code, val4, name}] trié par ptIdx.
 // onProgress(done, total) appelé après chaque chunk.
 export async function matchRoute(pts, dists, onProgress) {
-  const idxs    = sampleIdxs(dists, 200)  // 200m → ~55 chunks pour 100km
+  // Intervalle adaptatif : toujours au moins 30 points (pour les courtes traces),
+  // max 200m (pour les longues traces ~100km → ~55 chunks).
+  const totalDist = dists[dists.length-1] || 1
+  const interval  = Math.min(200, Math.max(20, totalDist / 30))
+  const idxs    = sampleIdxs(dists, interval)
   const sampled = dedup(idxs.map(i => pts[i]))
 
   // Chunks avec 1 point de recouvrement pour continuité entre chunks.
@@ -121,7 +125,7 @@ export async function matchRoute(pts, dists, onProgress) {
 
   const seen = new Set()
   const allSteps = []
-  console.log(`[OSRM] ${chunks.length} chunks · ${sampled.length} pts · 200m/pt`)
+  console.log(`[OSRM] ${chunks.length} chunks · ${sampled.length} pts · ~${Math.round(interval)}m/pt (dist=${Math.round(totalDist)}m)`)
 
   for (let c = 0; c < chunks.length; c++) {
     if (onProgress) onProgress(c + 1, chunks.length)
@@ -150,6 +154,14 @@ export async function matchRoute(pts, dists, onProgress) {
       name:  s.name,
     }))
     .sort((a, b) => a.ptIdx - b.ptIdx)
+  // Table de débogage : OSRM type+modifier → code Bryton encodé → à comparer avec l'appareil
+  console.table(result.map(s => ({
+    ptIdx: s.ptIdx,
+    code: `0x${s.code.toString(16).padStart(2,'0').toUpperCase()}`,
+    dist: s.val4 + 'm',
+    rue: s.name || '—',
+  })))
+
   const cnt = code => result.filter(s => s.code === code).length
   const rpt = cnt(0xD2)+cnt(0xD3)+cnt(0xD4)
   console.log(
