@@ -198,7 +198,7 @@ $('convertBtn').addEventListener('click', async () => {
         if (climbs.length) tinfoLabel += ` · ${climbs.length} montées`
         osrmStatus.textContent =
           `✓ ${steps.length} virages — ` +
-          `↻ droite ${cnt(0x0D)}  ↺ gauche ${cnt(0x0E)}  → tout droit ${cnt(0x02)}` +
+          `↻ droite ${cnt(0x0E)}  ↺ gauche ${cnt(0x0D)}  → tout droit ${cnt(0x02)}` +
           (cnt(0x03) ? `  ± léger ${cnt(0x03)}` : '') +
           (rpt       ? `  ⟳ rond-pt ${rpt}` : '')
       } else {

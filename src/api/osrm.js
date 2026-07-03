@@ -64,9 +64,10 @@ function toCode(type, modifier, exit) {
   const m = modifier || 'straight'
   if (m === 'straight')                            return 0x02
   if (m === 'slight right' || m === 'slight left') return 0x03
-  if (m === 'right')                               return 0x0D
-  if (m === 'left')                                return 0x0E
-  if (m === 'sharp right' || m === 'sharp left')   return 0x05
+  if (m === 'right')                               return 0x0E  // 0x0D = gauche sur Bryton
+  if (m === 'left')                                return 0x0D  // 0x0E = droite sur Bryton
+  if (m === 'sharp right') return 0x05  // fort virage — garder même code (symétrique?)
+  if (m === 'sharp left')  return 0x05
   if (m === 'uturn')                               return 0x07
   return 0x02
 }
@@ -152,21 +153,23 @@ export async function matchRoute(pts, dists, onProgress) {
       code:  toCode(s.type, s.modifier, s.exit),
       val4:  s.distance,
       name:  s.name,
+      _osrm: `${s.type}/${s.modifier || '—'}`,
     }))
     .sort((a, b) => a.ptIdx - b.ptIdx)
   // Table de débogage : OSRM type+modifier → code Bryton encodé → à comparer avec l'appareil
   console.table(result.map(s => ({
     ptIdx: s.ptIdx,
-    code: `0x${s.code.toString(16).padStart(2,'0').toUpperCase()}`,
-    dist: s.val4 + 'm',
-    rue: s.name || '—',
+    osrm:  s._osrm,
+    code:  `0x${s.code.toString(16).padStart(2,'0').toUpperCase()}`,
+    dist:  s.val4 + 'm',
+    rue:   s.name || '—',
   })))
 
   const cnt = code => result.filter(s => s.code === code).length
   const rpt = cnt(0xD2)+cnt(0xD3)+cnt(0xD4)
   console.log(
     `[OSRM] résultat : ${result.length} virages` +
-    ` — ↻ droite ${cnt(0x0D)}  ↺ gauche ${cnt(0x0E)}  → tout droit ${cnt(0x02)}` +
+    ` — ↻ droite ${cnt(0x0E)}  ↺ gauche ${cnt(0x0D)}  → tout droit ${cnt(0x02)}` +
     (cnt(0x03) ? `  ± léger ${cnt(0x03)}` : '') +
     (rpt       ? `  ⟳ rond-pt ${rpt}` : '') +
     (cnt(0x06) ? `  ⑂ bifurc. ${cnt(0x06)}` : '')
