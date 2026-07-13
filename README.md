@@ -76,6 +76,28 @@ Ouvre `http://localhost:5173` avec hot reload.
 
 ## Release notes
 
+### v0.5 — 2026-07-13
+
+- **Fiabilité récupération élévation SRTM** — L'API publique Open-Elevation échouait
+  silencieusement sur certains batchs (rate-limit/timeout), laissant des sections entières
+  du profil altimétrique à 0m plat dans le `.track` généré (jusqu'à ~50% d'une trace observée).
+  Ajout de retries avec backoff exponentiel + délai entre requêtes ; les points restants sans
+  élévation sont comblés avec la dernière altitude connue (constante) plutôt qu'un 0m, avec
+  avertissement affiché à l'utilisateur. Hypothèse forte observée sur le terrain : ces trous
+  à 0m provoquaient de fausses alertes "hors itinéraire" sur le device (qui semble comparer
+  la position GPS en 3D — lat/lon + altitude — aux points du `.track`).
+
+- **Table des codes de direction complète** — Reverse-engineering de `voiceTrip.tinfo`
+  (fichier généré par l'appli officielle Bryton) croisé avec les annotations OSRM sur la même trace.
+  Table confirmée : `0x02` tout droit · `0x03` léger gauche · `0x04` léger droite ·
+  `0x0D` gauche · `0x0E` droite · `0x06` serré gauche (−135°) · `0x05` serré droite (+135°) ·
+  `0x07` demi-tour · `0xD2/D3/D4` rond-point sortie 1/2/3+.
+  Corrections : `slight right` passait au même code que `slight left` (tous deux 0x03) ;
+  `sharp left` passait au même code que `sharp right` (tous deux 0x05).
+
+- **Bifurcation / fin de route** — Les types OSRM `fork` et `end of road` utilisent maintenant
+  le modifier de direction (léger droite, gauche, etc.) au lieu d'un code fixe incorrect.
+
 ### v0.4 — 2026-07-02
 
 - **Navigation turn-by-turn via OSRM** — Nouvelle option dans l'UI : la trace GPX est
@@ -353,8 +375,9 @@ sur une trace réelle de 100 km / 15 444 points.
 | `.track` lat/lon/ele | ✅ Correct | Encodage int32/uint16 LE validé |
 | `.track` byte 10 pente | ✅ Correct | Écart ≤ 1% vs officiel (fenêtre 200m) |
 | `.smy` | ✅ Correct | bbox, distance, D+ ok — D- = 0 comme l'officiel |
-| `.tinfo` | ✅ Correct | Flags 0xBE/0xBF + ptIdx sur 16 bits |
+| `.tinfo` format A | ✅ Correct | Flags 0xBE/0xBF + ptIdx sur 16 bits |
+| `.tinfo` format B nav | ✅ Correct | Structure 44B + codes direction confirmés via voiceTrip |
 | `.climb` structure | ✅ Correct | 4 × float32 : start_m, longueur_m, D+_m, grade |
 | `sort1.path` | ✅ Correct | Segments par tuile OSM z=13 — format validé |
 | `.climb` détection | 🔶 Approché | 1re montée exacte, autres ≈ ±2 km vs officiel |
-| `list.junc` | 🔶 Approché | Détection par angle de virage — pas les vraies intersections OSM |
+| `list.junc` | 🔶 Approché | Intersections OSM via Overpass, rayon 25m (~162 vs 733 officiel) |

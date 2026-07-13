@@ -41,7 +41,7 @@ L'utilisateur est sur PC/Nokia, sans l'appli Bryton officielle.
 | Offset | Type | Contenu |
 |--------|------|---------|
 | 0–1 | uint16 LE | ptIdx dans le .track |
-| 2 | uint8 | code instruction (0x01=départ, 0x02=tout droit, 0x0D=droite, 0x0E=gauche, 0xD2-D4=rond-point…) |
+| 2 | uint8 | code instruction (0x01=départ, 0x02=tout droit, 0x0D=gauche, 0x0E=droite, 0xD2-D4=rond-point…) |
 | 3 | uint8 | zéro |
 | 4–7 | uint32 | distance jusqu'au prochain virage (m ?) |
 | 8–11 | uint32 | même distance dans une autre unité (≈ ×200) |
@@ -83,7 +83,8 @@ Pas de sentinel. Source = intersections OSM (noeuds référencés par 2+ ways hi
 | `.track` lat/lon/ele | ✅ Correct | |
 | `.track` byte 10 pente | ✅ Correct | diff ≤ 1% vs officiel |
 | `.smy` | ✅ Correct | D-=0 corrigé, [24] laissé à 0 |
-| `.tinfo` | ✅ Correct | structure confirmée |
+| `.tinfo` format A (montées) | ✅ Correct | structure confirmée |
+| `.tinfo` format B (nav OSRM) | ✅ Correct | codes direction confirmés via voiceTrip + tests appareil |
 | `.climb` | ✅ Correct | structure confirmée |
 | Climb detection | 🔶 Partiel | 1re montée exacte, autres ≈ ±2km |
 | `list.junc` | 🔶 Partiel | OSM Overpass branché, rayon 25m → 162 intersections (officiel : 733) |
@@ -113,17 +114,59 @@ data_references/
 
 ---
 
+## Codes de direction `.tinfo` format B (confirmés)
+
+| Code | Signification | Certitude |
+|------|--------------|-----------|
+| 0x01 | DÉPART | ✅ |
+| 0x02 | Tout droit (0°) | ✅ |
+| 0x03 | Léger gauche (−45°) | ✅ confirmé voiceTrip |
+| 0x04 | Léger droite (+45°) | ✅ confirmé voiceTrip off=0 + nom rue |
+| 0x05 | Serré droite (+135°) | ✅ logique symétrique + observé écran |
+| 0x06 | Serré gauche (−135°) | ✅ logique symétrique + observé écran |
+| 0x07 | Demi-tour (180°) | 🔶 voiceTrip −86°/−156° |
+| 0x0D | Gauche (−90°) | ✅ test appareil |
+| 0x0E | Droite (+90°) | ✅ test appareil + voiceTrip off=0 |
+| 0x21 | ARRIVÉE | ✅ |
+| 0xD2 | Rond-point sortie 1 | ✅ |
+| 0xD3 | Rond-point sortie 2 | ✅ |
+| 0xD4 | Rond-point sortie 3+ | ✅ |
+
+---
+
+## Fiabilité élévation SRTM et hypothèse "hors itinéraire"
+
+L'API publique Open-Elevation (`open-elevation.com`) échoue silencieusement sur certains
+batchs de 512 points (rate-limit/timeout côté serveur, aucune garantie de service). Avant
+correction, les points concernés tombaient à **0m d'altitude plat** dans le `.track` généré
+(observé : ~50% d'une trace de 78km sur deux traces terrain distinctes).
+
+**Corrigé** : `fetchElevations` retry chaque batch (3 tentatives, backoff exponentiel) +
+délai de 300ms entre batchs. S'il reste des trous après retries, l'app comble avec la
+dernière altitude connue tenue constante et affiche un avertissement (`app.js`, handler
+`fetchEleBtn`).
+
+**Hypothèse forte (non confirmée à 100%, mais observation terrain cohérente sur 2 traces)** :
+le device compare probablement la position GPS en **3D** (lat/lon + altitude) aux points du
+`.track` pour la détection "sur le trajet" — pas seulement lat/lon comme supposé. Sur les deux
+traces générées par l'outil avant le fix, le message "hors itinéraire" apparaissait
+précisément aux endroits où l'altitude était à 0m (trou SRTM), et le device retrouvait la
+trace dès que l'altitude réelle était présente. Zone à retester après le fix élévation
+(v0.5) pour confirmer/infirmer.
+
+---
+
 ## Prochains chantiers
 
 1. **`list.junc`** : augmenter le rayon Overpass (25m → 50m) pour aller vers ~700 intersections
 2. **Climb detection** : algo grade-based prometteur mais pas convergé
 3. **D- UI** : l'affichage montre encore D- calculé — à masquer (mettre 0 comme l'officiel)
-4. **`.tinfo` format B** (hors scope actuel) : voice navigation depuis GPX nécessiterait OSRM + Nominatim
+4. **Vérifier sur device** que le fix élévation (v0.5) fait disparaître les faux "hors itinéraire"
 
 ---
 
 ## Versioning
 
-- Fichier de travail v0.3 : `src/` (modules ES) + `index.html` → `npm run build` → `dist/index.html`
+- Fichier de travail v0.5 : `src/` (modules ES) + `index.html` → `npm run build` → `dist/index.html`
 - Archive proto : `proto_html/bryton.html` (v0.2), `proto_html/bryton_v0.1.html` (ne pas modifier)
-- Tags git : `v0.1`
+- Tags git : `v0.1`, `v0.2`, `v0.4`, `v0.5`
