@@ -52,6 +52,11 @@ function nearestPt(lon, lat, pts) {
 }
 
 // Manœuvre OSRM → code byte Bryton.
+// Table (angle en degrés, 0=tout droit, 180=demi-tour) :
+//   0x02 tout droit  0x03 léger gauche  0x04 léger droite
+//   0x0D gauche      0x0E droite
+//   0x06 serré gauche (-135°)           0x05 serré droite (+135°)
+//   0x07 demi-tour   0xD2/D3/D4 rond-point sortie 1/2/3+
 function toCode(type, modifier, exit) {
   if (type === 'depart')  return 0x01
   if (type === 'arrive')  return 0x21
@@ -60,14 +65,14 @@ function toCode(type, modifier, exit) {
     if (exit === 2) return 0xD3
     return 0xD4
   }
-  if (type === 'fork' || type === 'end of road') return 0x06
   const m = modifier || 'straight'
   if (m === 'straight')                            return 0x02
-  if (m === 'slight right' || m === 'slight left') return 0x03
-  if (m === 'right')                               return 0x0E  // 0x0D = gauche sur Bryton
-  if (m === 'left')                                return 0x0D  // 0x0E = droite sur Bryton
-  if (m === 'sharp right') return 0x05  // fort virage — garder même code (symétrique?)
-  if (m === 'sharp left')  return 0x05
+  if (m === 'slight right') return 0x04  // confirmé voiceTrip off=0
+  if (m === 'slight left')  return 0x03  // symétrique de 0x04
+  if (m === 'right')        return 0x0E  // confirmé empirique + voiceTrip
+  if (m === 'left')         return 0x0D  // confirmé empirique
+  if (m === 'sharp right')  return 0x05
+  if (m === 'sharp left')   return 0x06
   if (m === 'uturn')                               return 0x07
   return 0x02
 }
@@ -170,7 +175,7 @@ export async function matchRoute(pts, dists, onProgress) {
   console.log(
     `[OSRM] résultat : ${result.length} virages` +
     ` — ↻ droite ${cnt(0x0E)}  ↺ gauche ${cnt(0x0D)}  → tout droit ${cnt(0x02)}` +
-    (cnt(0x03) ? `  ± léger ${cnt(0x03)}` : '') +
+    (cnt(0x03)+cnt(0x04) ? `  ± léger ${cnt(0x03)+cnt(0x04)}` : '') +
     (rpt       ? `  ⟳ rond-pt ${rpt}` : '') +
     (cnt(0x06) ? `  ⑂ bifurc. ${cnt(0x06)}` : '')
   )
