@@ -138,7 +138,20 @@ $('fetchEleBtn').addEventListener('click', async () => {
   try {
     const eles = await fetchElevations(state.parsedPoints)
     if (!eles.filter(e => e != null).length) throw new Error('API indisponible')
-    const pts = state.parsedPoints.map((p, i) => [p[0], p[1], eles[i] ?? p[2]])
+    // Points sans élévation même après retries : on tient la dernière altitude connue
+    // constante plutôt que de laisser un trou (0m plat → fausses alertes "hors itinéraire"
+    // sur le device, qui compare la position GPS en 3D aux points du .track).
+    let lastKnown = null, missing = 0
+    const filled = eles.map(e => {
+      if (e != null) { lastKnown = e; return e }
+      missing++
+      return lastKnown // reste null si aucune valeur connue avant (comblé au 2e passage ci-dessous)
+    })
+    if (filled[0] == null) {
+      const firstKnown = filled.find(e => e != null)
+      for (let i = 0; i < filled.length && filled[i] == null; i++) filled[i] = firstKnown
+    }
+    const pts = state.parsedPoints.map((p, i) => [p[0], p[1], filled[i] ?? p[2]])
     const dists = buildDists(pts)
     const climbs = detectClimbs(pts, dists)
     const eles2 = pts.map(p => p[2]).filter(e => e != null)
@@ -148,6 +161,10 @@ $('fetchEleBtn').addEventListener('click', async () => {
     $('s-dplus').textContent = `D+ ${up} m  /  D− ${dn} m`
     $('s-dplus').className = 'sv'
     $('s-climbs').textContent = climbs.length ? climbs.length + ' détectée(s)' : 'aucune'
+    if (missing) {
+      const pct = Math.round(missing / eles.length * 100)
+      showErr(`⚠ Élévation manquante sur ${missing} points (${pct}%) — comblée avec la dernière altitude connue (constante). D+/D− et le profil sont approximatifs sur ces sections.`)
+    }
     setState({ parsedPoints: pts, pts, dists })
     drawProfile(pts, dists, state.manualClimbs, null, null, null)
     $('profileCard').classList.add('visible')
@@ -199,7 +216,7 @@ $('convertBtn').addEventListener('click', async () => {
         osrmStatus.textContent =
           `✓ ${steps.length} virages — ` +
           `↻ droite ${cnt(0x0E)}  ↺ gauche ${cnt(0x0D)}  → tout droit ${cnt(0x02)}` +
-          (cnt(0x03) ? `  ± léger ${cnt(0x03)}` : '') +
+          (cnt(0x03)+cnt(0x04) ? `  ± léger ${cnt(0x03)+cnt(0x04)}` : '') +
           (rpt       ? `  ⟳ rond-pt ${rpt}` : '')
       } else {
         osrmStatus.textContent = `⚠ OSRM : aucune instruction — fallback montées seules`
