@@ -9,11 +9,20 @@
 //   - max ~10 coords par requête /match ("Too many trace coordinates" à 30)
 //   - max radius ~25m par point ("Radius search size too large" à 50m)
 // Paramètres actuels :
-//   - échantillon à 200m → ~55 chunks pour 100km (~60s)
+//   - échantillon à 200m + ancrage sur les virages détectés dans le GPS brut → ~55-65
+//     chunks pour 100km
 //   - déduplication des points < 15m (oscillations GPS)
 //   - timestamps à 36s/pt (~20 km/h sur 200m)
 //   - radiuses=20m
+//
+// Un point tous les 200m suffit sur une longue ligne droite, mais dans un lotissement
+// (rues de 30-150m) OSRM n'a pas assez de repères entre deux points et peut recoller un
+// chemin plausible mais faux à travers une rue voisine. On ajoute donc les points où la
+// trace GPS change vraiment de direction (detectTurnIdxs, geo.js) comme points d'ancrage
+// supplémentaires — même logique que le fallback de list.junc.
 // ════════════════════════════════════════════════════════════════
+
+import { detectTurnIdxs } from '../geo.js'
 
 const OSRM    = 'https://router.project-osrm.org/match/v1/driving'
 const CHUNK   = 10    // /match serveur public : ~10 pts max (30 → "Too many trace coordinates")
@@ -119,8 +128,10 @@ export async function matchRoute(pts, dists, onProgress) {
   // max 200m (pour les longues traces ~100km → ~55 chunks).
   const totalDist = dists[dists.length-1] || 1
   const interval  = Math.min(200, Math.max(20, totalDist / 30))
-  const idxs    = sampleIdxs(dists, interval)
-  const sampled = dedup(idxs.map(i => pts[i]))
+  const idxs      = sampleIdxs(dists, interval)
+  const turnIdxs  = detectTurnIdxs(pts, dists).map(t => t.ptIdx)
+  const merged    = [...new Set([...idxs, ...turnIdxs])].sort((a, b) => a - b)
+  const sampled   = dedup(merged.map(i => pts[i]))
 
   // Chunks avec 1 point de recouvrement pour continuité entre chunks.
   const chunks = []

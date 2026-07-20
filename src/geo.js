@@ -35,3 +35,33 @@ export function buildDists(pts) {
   for (let i = 1; i < pts.length; i++) d.push(d[d.length-1] + hav(pts[i-1][0], pts[i-1][1], pts[i][0], pts[i][1]));
   return d;
 }
+
+// Détecte les points où la trace GPS change vraiment de direction (virages réels),
+// par changement de bearing ≥ threshold sur une fenêtre de `window` mètres.
+// Utilisé en fallback pour list.junc (pas d'intersections OSM) et pour ancrer
+// l'échantillonnage OSRM sur les vrais virages plutôt qu'un intervalle de distance
+// aveugle — dans un lotissement (rues courtes et rapprochées), un point tous les 200m
+// peut manquer un virage et laisser OSRM reconstituer un chemin plausible mais faux.
+export function detectTurnIdxs(pts, dists, { threshold = 25, window = 50, minSpacing = 100 } = {}) {
+  const n = pts.length;
+  function bearingAt(i) {
+    let a = i; while (a > 0 && dists[i]-dists[a] < window) a--;
+    let b = i; while (b < n-1 && dists[b]-dists[i] < window) b++;
+    const phi1 = pts[a][0]*Math.PI/180, phi2 = pts[b][0]*Math.PI/180;
+    const dl = (pts[b][1]-pts[a][1])*Math.PI/180;
+    const x = Math.sin(dl)*Math.cos(phi2);
+    const y = Math.cos(phi1)*Math.sin(phi2) - Math.sin(phi1)*Math.cos(phi2)*Math.cos(dl);
+    return (Math.atan2(x, y)*180/Math.PI + 360) % 360;
+  }
+  const turns = [];
+  let lastDist = -Infinity;
+  for (let i = 10; i < n-10; i++) {
+    if (dists[i]-lastDist < minSpacing) continue;
+    const hB = bearingAt(Math.max(0, i-5)), hA = bearingAt(Math.min(n-1, i+5));
+    if (Math.abs(((hA-hB+180)%360)-180) >= threshold) {
+      turns.push({ ptIdx: i, bear: hA });
+      lastDist = dists[i];
+    }
+  }
+  return turns;
+}

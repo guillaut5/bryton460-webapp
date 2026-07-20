@@ -17,6 +17,8 @@
 // le nombre de records (pas de header dans ce format).
 // ════════════════════════════════════════════════════════════════
 
+import { detectTurnIdxs } from '../geo.js'
+
 // Interroge Overpass API pour trouver les intersections OSM le long de la trace.
 // Retourne [{lat, lon}] — noeuds référencés par 2+ ways highway dans un rayon de 25m.
 // Échantillonne la trace à ~300 points pour limiter la taille de la requête Overpass.
@@ -83,17 +85,8 @@ export function encodeJunc(junctions, pts, dists) {
   }
 
   if (!junctions) {
-    const turns = [];
-    let lastDist = -999;
-    for (let i = 10; i < n-10; i++) {
-      if (dists[i]-lastDist < 100) continue;
-      const hB = bearingAt(Math.max(0, i-5)), hA = bearingAt(Math.min(n-1, i+5));
-      if (Math.abs(((hA-hB+180)%360)-180) >= 25) {
-        turns.push({ lat: pts[i][0], lon: pts[i][1], _ptIdx: i, _bear: hA });
-        lastDist = dists[i];
-      }
-    }
-    junctions = turns;
+    junctions = detectTurnIdxs(pts, dists).map(({ ptIdx, bear }) =>
+      ({ lat: pts[ptIdx][0], lon: pts[ptIdx][1], _ptIdx: ptIdx, _bear: bear }));
   }
 
   // Recherche du point de trace le plus proche par distance Manhattan (rapide, suffisant).
