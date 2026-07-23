@@ -45,7 +45,7 @@ L'utilisateur est sur PC/Nokia, sans l'appli Bryton officielle.
 | 3 | uint8 | zéro |
 | 4–7 | uint32 | distance jusqu'au prochain virage (m ?) |
 | 8–11 | uint32 | même distance dans une autre unité (≈ ×200) |
-| 12–43 | UTF-8 | nom de rue null-paddé sur 32 octets |
+| 12–43 | UTF-8 | nom de rue null-paddé sur 32 octets (souvent vide, voir "Navigation OSRM") |
 
 Ce format permet la **navigation vocale avec annonce des noms de rue**. Généré depuis un GPX
 via OSRM `/match` (map matching) — voir section "Navigation OSRM" plus bas.
@@ -194,6 +194,14 @@ voisine — reproduit concrètement ("Rue Marcellin Albert" insérée à tort). 
 les points où la trace GPS change vraiment de direction (`detectTurnIdxs`, geo.js) comme
 ancrages supplémentaires à l'échantillonnage uniforme. Coût mesuré : ~1.5x plus de requêtes
 OSRM (donc plus lent à générer), zéro nouvelle dépendance externe.
+
+**Nom de rue** : vient de `step.name` renvoyé directement par OSRM (lui-même le tag OSM
+`name` de la way matchée) — aucune source séparée, pas de géocodage/reverse-geocoding à part.
+Donc **même fiabilité que le code de direction** : les deux viennent du même step OSRM, donc
+un mauvais map-matching (comme le bug rue fantôme) fausse le nom ET le code ensemble, jamais
+l'un sans l'autre. Beaucoup de tronçons n'ont simplement pas de nom dans OSM (chemins/pistes
+non taggés) — mesuré sur deux traces gravel réelles : **45-54% des virages sans nom**. C'est
+attendu, pas un bug — plus fréquent hors zone urbaine/route bitumée.
 
 **Pistes explorées et abandonnées :**
 - *Intersections OSM réelles via Overpass* — `fetchOSMJunctions()` (junc.js) existe depuis

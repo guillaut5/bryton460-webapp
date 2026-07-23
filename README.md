@@ -255,6 +255,38 @@ rec3  BE 10 BF 00  →                                  ptIdx=4286
 
 ---
 
+### `.tinfo` format B — N × 44 octets (navigation virage par virage)
+
+Généré uniquement si l'option OSRM est cochée. Remplace le format A ci-dessus (pas de mélange
+des deux) — mêmes 44 octets par record, mais tous utilisés cette fois. Voir aussi la section
+"Fiabilité navigation OSRM" du CLAUDE.md pour la provenance et les limites du code/nom.
+
+```
+Offset  Taille  Type    Contenu
+00      2       uint16  ptIdx dans le .track
+02      1       uint8   code instruction (0x01 DÉPART, 0x02 tout droit, 0x0D gauche,
+                        0x0E droite, 0xD2-D4 rond-point sortie 1/2/3+, 0x21 ARRIVÉE,
+                        0xFA info rue départ/distance totale, 0xBE/0xBF montées — cf.
+                        table complète des codes dans CLAUDE.md)
+03      1       —       zéro
+04      4       uint32  distance jusqu'au prochain virage (m)
+08      4       uint32  même distance × 200 (unité inconnue, ratio confirmé)
+12      32      UTF-8   nom de rue, null-paddé (souvent vide, ~50% des virages hors ville)
+```
+
+Exemple réel (trace gravel, virage à gauche sur une impasse) :
+```
+06 00  0D  00  0F 00 00 00  B8 0B 00 00  49 6D 70 61 73 73 65 20 64 65 20 6C 27 41 62…00
+↑      ↑       ↑            ↑            ↑
+ptIdx=6 GAUCHE  15m          3000=15×200  "Impasse de l'Abattoir" (UTF-8, reste = zéros)
+```
+
+Structure du fichier complet : DÉPART (0x01) → INFO rue départ (0xFA) → virages dans l'ordre
+du parcours → INFO distance totale (0xFA) → ARRIVÉE (0x21) → marqueurs de montées (0xBE/0xBF),
+mêmes flags que le format A ci-dessus.
+
+---
+
 ### `list.junc` / `list2.junc` — N × 12 octets + sentinel
 
 Intersections OSM que la route traverse. Les deux fichiers sont identiques.
@@ -395,6 +427,7 @@ sur une trace réelle de 100 km / 15 444 points.
 | `.smy` | ✅ Correct | bbox, distance, D+ ok — D- = 0 comme l'officiel |
 | `.tinfo` format A | ✅ Correct | Flags 0xBE/0xBF + ptIdx sur 16 bits |
 | `.tinfo` format B nav | 🔶 Approché | Structure 44B + codes direction confirmés via voiceTrip ; échantillonnage OSRM ancré sur les vrais virages GPS pour éviter les rues erronées ; un éventuel décalage ptIdx/code entre intersections n'est pas encore tranché |
+| `.tinfo` nom de rue | 🔶 Approché | Vient de `step.name` OSRM (tag OSM `name` de la route matchée) — même fiabilité que le code de direction, aucune source séparée. Souvent vide sur route non taggée : 45-54% des virages sans nom mesuré sur deux traces gravel réelles |
 | `.climb` structure | ✅ Correct | 4 × float32 : start_m, longueur_m, D+_m, grade |
 | `sort1.path` | ✅ Correct | Segments par tuile OSM z=13 — format validé |
 | `.climb` détection | 🔶 Approché | 1re montée exacte, autres ≈ ±2 km vs officiel |
