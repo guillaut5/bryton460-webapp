@@ -15,6 +15,10 @@ import { drawProfile, updateManualClimbList, initProfileInteractions } from './p
 
 const $ = id => document.getElementById(id)
 
+// __APP_VERSION__ injecté au build par Vite depuis package.json (vite.config.js) —
+// seule source de vérité, jamais écrit en dur ailleurs.
+$('appVersion').textContent = 'v' + __APP_VERSION__
+
 // Écart max toléré entre deux points consécutifs du .track (m) — au-delà, densify()
 // interpole des points intermédiaires. Voir geo.js pour le pourquoi.
 const MAX_TRACK_GAP_M = 30
