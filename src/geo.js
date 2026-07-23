@@ -36,6 +36,30 @@ export function buildDists(pts) {
   return d;
 }
 
+// Insère des points intermédiaires (interpolation linéaire lat/lon/ele) partout où deux
+// points consécutifs sont espacés de plus de maxGapM mètres. Certains GPX (exports de
+// planificateur type Komoot) ne stockent que les points de forme de la route et laissent
+// des trous de plusieurs centaines de mètres sur les lignes droites, même sans simplification
+// de notre côté. Le device Bryton semble comparer la position GPS au point du .track le plus
+// proche : un trou trop large peut déclencher un faux "hors itinéraire" en étant pourtant
+// exactement sur le tracé. À appliquer après une éventuelle simplification RDP/uniforme —
+// jamais avant, sinon RDP supprimerait aussitôt les points insérés (déviation nulle par rapport
+// à la ligne dont ils viennent).
+export function densify(pts, maxGapM) {
+  const out = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    const [lat0, lon0, ele0] = pts[i-1], [lat1, lon1, ele1] = pts[i];
+    const n = Math.ceil(hav(lat0, lon0, lat1, lon1) / maxGapM);
+    for (let k = 1; k < n; k++) {
+      const t = k / n;
+      const ele = ele0 != null && ele1 != null ? ele0 + (ele1-ele0)*t : null;
+      out.push([lat0 + (lat1-lat0)*t, lon0 + (lon1-lon0)*t, ele]);
+    }
+    out.push(pts[i]);
+  }
+  return out;
+}
+
 // Détecte les points où la trace GPS change vraiment de direction (virages réels),
 // par changement de bearing ≥ threshold sur une fenêtre de `window` mètres.
 // Utilisé en fallback pour list.junc (pas d'intersections OSM) et pour ancrer

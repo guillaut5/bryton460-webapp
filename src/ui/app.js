@@ -1,6 +1,6 @@
 import JSZip from 'jszip'
 import { parseGPX } from '../gpx.js'
-import { hav, totalDist, calcClimb, buildDists } from '../geo.js'
+import { hav, totalDist, calcClimb, buildDists, densify } from '../geo.js'
 import { applySimp } from '../simplify.js'
 import { detectClimbs } from '../climbs.js'
 import { computeGrades, encodeTrack } from '../encoders/track.js'
@@ -14,6 +14,10 @@ import { supportsFS, findBrytonDrive, writeFilesToDir } from './transfer.js'
 import { drawProfile, updateManualClimbList, initProfileInteractions } from './profile.js'
 
 const $ = id => document.getElementById(id)
+
+// Écart max toléré entre deux points consécutifs du .track (m) — au-delà, densify()
+// interpole des points intermédiaires. Voir geo.js pour le pourquoi.
+const MAX_TRACK_GAP_M = 30
 
 // ── État global ──────────────────────────────────────────────────────────────
 const state = {
@@ -185,7 +189,8 @@ $('convertBtn').addEventListener('click', async () => {
   $('convertBtn').disabled = true; $('convertBtn').textContent = 'Génération…'
 
   const name = ($('routeName').value.trim() || 'route').replace(/[^a-zA-Z0-9_\-]/g, '_')
-  const pts = applySimp(state.parsedPoints, { mode: state.simpMode, rdpEps: parseFloat($('rdpSlider').value), step: parseInt($('stepSlider').value), maxPts: parseInt($('maxPts').value)||99999 })
+  const simplified = applySimp(state.parsedPoints, { mode: state.simpMode, rdpEps: parseFloat($('rdpSlider').value), step: parseInt($('stepSlider').value), maxPts: parseInt($('maxPts').value)||99999 })
+  const pts = densify(simplified, MAX_TRACK_GAP_M)
   const dists = buildDists(pts)
   const autoClimbs = detectClimbs(pts, dists)
   const climbs = [...autoClimbs, ...state.manualClimbs].sort((a, b) => a.start - b.start)
