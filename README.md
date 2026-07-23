@@ -76,6 +76,24 @@ Ouvre `http://localhost:5173` avec hot reload.
 
 ## Release notes
 
+### v0.6 — 2026-07-21
+
+- **Fix "rue fantôme" dans l'échantillonnage OSRM** — `matchRoute()` n'envoyait un point à
+  OSRM que tous les 200m ; dans un lotissement (rues courtes et rapprochées), OSRM pouvait
+  reconstituer un chemin plausible mais faux à travers une rue voisine (reproduit
+  concrètement). Corrigé en ajoutant les points où la trace GPS change vraiment de direction
+  comme repères supplémentaires. Overpass (intersections OSM réelles) et une classification
+  des virages par géométrie GPS pure ont été explorées comme alternatives et abandonnées
+  (service indisponible / peu fiable dans les carrefours denses).
+
+- **Fix trous de points >30m dans le `.track`** — certains GPX exportés depuis un
+  planificateur d'itinéraire (Komoot confirmé) ne stockent que les points de forme de la
+  route et laissent des trous de plusieurs centaines de mètres sur les lignes droites, même
+  sans simplification côté outil. Le device semble comparer la position GPS au point du
+  `.track` le plus proche : un trou trop large peut déclencher un faux "hors itinéraire" en
+  étant pourtant exactement sur le tracé. Comblé par interpolation linéaire (`densify`,
+  écart max 30m), appliquée après une éventuelle simplification RDP/uniforme.
+
 ### v0.5 — 2026-07-13
 
 - **Fiabilité récupération élévation SRTM** — L'API publique Open-Elevation échouait
@@ -376,8 +394,9 @@ sur une trace réelle de 100 km / 15 444 points.
 | `.track` byte 10 pente | ✅ Correct | Écart ≤ 1% vs officiel (fenêtre 200m) |
 | `.smy` | ✅ Correct | bbox, distance, D+ ok — D- = 0 comme l'officiel |
 | `.tinfo` format A | ✅ Correct | Flags 0xBE/0xBF + ptIdx sur 16 bits |
-| `.tinfo` format B nav | ✅ Correct | Structure 44B + codes direction confirmés via voiceTrip |
+| `.tinfo` format B nav | 🔶 Approché | Structure 44B + codes direction confirmés via voiceTrip ; échantillonnage OSRM ancré sur les vrais virages GPS pour éviter les rues erronées ; un éventuel décalage ptIdx/code entre intersections n'est pas encore tranché |
 | `.climb` structure | ✅ Correct | 4 × float32 : start_m, longueur_m, D+_m, grade |
 | `sort1.path` | ✅ Correct | Segments par tuile OSM z=13 — format validé |
 | `.climb` détection | 🔶 Approché | 1re montée exacte, autres ≈ ±2 km vs officiel |
-| `list.junc` | 🔶 Approché | Intersections OSM via Overpass, rayon 25m (~162 vs 733 officiel) |
+| `.track` densité de points | ✅ Corrigé | Écart max garanti de 30m entre points consécutifs (`densify`) — certains GPX (export planificateur type Komoot) ont des trous natifs de 500m+ |
+| `list.junc` | 🔶 Approché | Détection par changement d'angle GPS (Overpass jamais branché en prod, et service actuellement injoignable) |
