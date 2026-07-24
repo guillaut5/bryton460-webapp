@@ -222,6 +222,13 @@ revisité dans le format de fichier. Renforce l'hypothèse d'une vraie limite fi
 gérer une trace qui repasse par les mêmes coordonnées (aller-retour ou boucle qui se
 recroise), indépendante de l'outil utilisé pour générer les fichiers.
 
+**Contournement ajouté côté outil (2026-07-24, pas un fix du problème lui-même) :** case
+"Générer aussi le sens inverse" dans l'UI — produit un second jeu de fichiers
+`<nom>_reverse.*` avec pente/D+/D-/virages/jonctions/montées entièrement recalculés sur la
+trace retournée (`reverseRoute()` + `buildRouteFiles()`, app.js). Si l'hypothèse pointeur de
+progression est correcte, basculer sur ce fichier après un demi-tour forcé devrait redonner
+une progression "en avant" du point de vue du device. Pas testé sur device au 2026-07-24.
+
 **Comment investiguer un nouveau rapport "hors itinéraire" :** vérifier dans l'ordre (1) trous
 d'altitude à 0m, (2) écart entre points consécutifs du `.track` (`hav()` point à point,
 chercher les gaps >100m), (3) segments `sort1.path` anormalement courts, (4) si le rapport

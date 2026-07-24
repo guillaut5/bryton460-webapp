@@ -76,6 +76,15 @@ Ouvre `http://localhost:5173` avec hot reload.
 
 ## Release notes
 
+### Non publié (depuis v0.7)
+
+- **Génération du sens inverse** — nouvelle case à cocher qui génère, en plus du fichier
+  normal, un second jeu complet (`<nom>_reverse.*`) à partir de la trace retournée. Pente,
+  D+/D-, virages OSRM, jonctions et montées sont tous recalculés depuis zéro sur la trace
+  inversée (pas un simple flip d'octets). Contournement pratique en cas de demi-tour forcé
+  (chemin fermé, etc.) — voir la piste en cours d'investigation sur le suivi du device après
+  un demi-tour dans `CLAUDE.md`.
+
 ### v0.7 — 2026-07-24
 
 - **Garde-fou sur les virages mal matchés par OSRM** — sur les tronçons hors réseau routable
