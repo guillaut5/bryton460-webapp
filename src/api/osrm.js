@@ -20,13 +20,22 @@
 // chemin plausible mais faux à travers une rue voisine. On ajoute donc les points où la
 // trace GPS change vraiment de direction (detectTurnIdxs, geo.js) comme points d'ancrage
 // supplémentaires — même logique que le fallback de list.junc.
+//
+// Garde-fou supplémentaire : sur les tronçons hors réseau routable (chemins/pistes non
+// carrossables), OSRM (profil driving) peut quand même renvoyer un "match" — mais sur la
+// route bitumée la plus proche, parfois à plusieurs centaines de mètres du vrai tracé.
+// Mesuré sur une trace réelle : jusqu'à 926m d'écart entre la position renvoyée par OSRM et
+// le point du .track le plus proche, alors que les vrais matchs sont à 0m (le .track est
+// densifié à 30m max, voir densify() dans geo.js — un bon match doit donc toujours être tout
+// proche). Ces virages hallucinés sont rejetés plutôt qu'encodés.
 // ════════════════════════════════════════════════════════════════
 
-import { detectTurnIdxs } from '../geo.js'
+import { detectTurnIdxs, hav } from '../geo.js'
 
 const OSRM    = 'https://router.project-osrm.org/match/v1/driving'
 const CHUNK   = 10    // /match serveur public : ~10 pts max (30 → "Too many trace coordinates")
 const RATE_MS = 1100  // délai entre requêtes (bonne pratique serveur public)
+const MAX_MATCH_DIST_M = 50  // au-delà, le match OSRM est jugé non fiable et l'instruction est rejetée
 
 // Indices des points échantillonnés à ~interval mètres d'intervalle.
 function sampleIdxs(dists, interval) {
@@ -162,16 +171,31 @@ export async function matchRoute(pts, dists, onProgress) {
   }
 
   // depart/arrive de chaque leg OSRM sont du bruit (encodeTinfoNav génère les siens).
+  let rejected = 0
   const result = allSteps
     .filter(s => s.type !== 'depart' && s.type !== 'arrive')
-    .map(s => ({
-      ptIdx: nearestPt(s.location[0], s.location[1], pts),
-      code:  toCode(s.type, s.modifier, s.exit),
-      val4:  s.distance,
-      name:  s.name,
-      _osrm: `${s.type}/${s.modifier || '—'}`,
-    }))
+    .map(s => {
+      const ptIdx = nearestPt(s.location[0], s.location[1], pts)
+      const matchDist = hav(pts[ptIdx][0], pts[ptIdx][1], s.location[1], s.location[0])
+      return {
+        ptIdx,
+        code: toCode(s.type, s.modifier, s.exit),
+        val4: s.distance,
+        name: s.name,
+        matchDist,
+        _osrm: `${s.type}/${s.modifier || '—'}`,
+      }
+    })
+    .filter(s => {
+      if (s.matchDist > MAX_MATCH_DIST_M) {
+        console.warn(`[OSRM] virage rejeté — matché à ${Math.round(s.matchDist)}m du vrai tracé (ptIdx ${s.ptIdx}, ${s.name || 'sans nom'})`)
+        rejected++
+        return false
+      }
+      return true
+    })
     .sort((a, b) => a.ptIdx - b.ptIdx)
+  if (rejected) console.log(`[OSRM] ${rejected} virage(s) rejeté(s) — match à plus de ${MAX_MATCH_DIST_M}m du tracé réel`)
   // Table de débogage : OSRM type+modifier → code Bryton encodé → à comparer avec l'appareil
   console.table(result.map(s => ({
     ptIdx: s.ptIdx,
