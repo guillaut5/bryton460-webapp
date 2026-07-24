@@ -76,6 +76,16 @@ Ouvre `http://localhost:5173` avec hot reload.
 
 ## Release notes
 
+### v0.10 — 2026-07-24
+
+- **Fond de carte OSM interactif** — l'aperçu du tracé (v0.9) passe du simple dessin SVG à une
+  vraie carte [Leaflet](https://leafletjs.com/) avec tuiles OpenStreetMap réelles, zoom et
+  déplacement. Seule fonctionnalité de l'appli dont le rendu complet nécessite le réseau (les
+  tuiles sont chargées à la volée, pas embarquées dans le fichier) — comme OSRM/l'élévation,
+  c'est une amélioration optionnelle : sans réseau, le tracé (vectoriel, dessiné localement) et
+  les marqueurs de départ/arrivée restent visibles, seul le fond de carte manque. +150 Ko dans
+  le fichier unique (Leaflet inliné). Testé dans un vrai navigateur : tuiles, zoom, marqueurs.
+
 ### v0.9 — 2026-07-24
 
 - **Aperçu 2D du tracé** — nouvelle carte "Aperçu du tracé" affichée dès le chargement du GPX

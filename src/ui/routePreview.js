@@ -1,34 +1,33 @@
-// Aperçu 2D léger du tracé (forme vue du dessus), en SVG pur — pas de tuiles/carte externe,
-// cohérent avec le reste de l'appli (fichier unique, utilisable hors-ligne).
-// Longitude corrigée par cos(latitude) pour ne pas déformer la forme réelle du parcours.
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+
+// Aperçu carte du tracé (fond OSM + tracé + départ/arrivée), avec zoom/pan.
+// Seule fonctionnalité de l'appli qui nécessite le réseau pour son rendu complet (les tuiles
+// OSM sont chargées à la volée, pas embarquées dans le fichier) — comme OSRM/l'élévation,
+// c'est une amélioration optionnelle : sans réseau, la carte reste grise mais le tracé
+// (vectoriel, dessiné localement) et les marqueurs restent visibles.
+let map = null, routeLayer = null
+
 export function drawRoutePreview(pts) {
-  const svg = document.getElementById('routePreviewSvg')
-  if (!pts || pts.length < 2) { svg.innerHTML = ''; return }
+  const container = document.getElementById('routePreviewMap')
+  if (!pts || pts.length < 2) { if (routeLayer) { routeLayer.remove(); routeLayer = null }; return }
 
-  const lats = pts.map(p => p[0]), lons = pts.map(p => p[1])
-  const latMin = Math.min(...lats), latMax = Math.max(...lats)
-  const lonMin = Math.min(...lons), lonMax = Math.max(...lons)
-  const cosLat = Math.cos((latMin + latMax) / 2 * Math.PI / 180)
+  const latlngs = pts.map(p => [p[0], p[1]])
 
-  const spanX = Math.max((lonMax - lonMin) * cosLat, 1e-9)
-  const spanY = Math.max(latMax - latMin, 1e-9)
-  const scale = 100 / Math.max(spanX, spanY) // le plus grand côté = 100 unités, l'autre au prorata
-  const PAD = 6, R = 1.8
-
-  const xOf = lon => (lon - lonMin) * cosLat * scale + PAD
-  const yOf = lat => (latMax - lat) * scale + PAD // nord en haut
-
-  let path = ''
-  for (let i = 0; i < pts.length; i++) {
-    path += (path ? 'L' : 'M') + xOf(pts[i][1]).toFixed(2) + ',' + yOf(pts[i][0]).toFixed(2)
+  if (!map) {
+    map = L.map(container, { attributionControl: true })
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }).addTo(map)
   }
-  const sx = xOf(pts[0][1]), sy = yOf(pts[0][0])
-  const ex = xOf(pts[pts.length-1][1]), ey = yOf(pts[pts.length-1][0])
 
-  const vbW = spanX * scale + PAD * 2, vbH = spanY * scale + PAD * 2
-  svg.setAttribute('viewBox', `0 0 ${vbW.toFixed(2)} ${vbH.toFixed(2)}`)
-  svg.innerHTML = `
-    <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>
-    <circle cx="${ex.toFixed(2)}" cy="${ey.toFixed(2)}" r="${R}" fill="var(--accent2)"/>
-    <circle cx="${sx.toFixed(2)}" cy="${sy.toFixed(2)}" r="${R}" fill="var(--text)" stroke="var(--bg)" stroke-width="0.8"/>`
+  if (routeLayer) routeLayer.remove()
+  routeLayer = L.layerGroup([
+    L.polyline(latlngs, { color: '#00d4aa', weight: 3 }),
+    L.circleMarker(latlngs[0], { radius: 5, color: '#0f1117', weight: 1.5, fillColor: '#e8eaf0', fillOpacity: 1 }),
+    L.circleMarker(latlngs[latlngs.length-1], { radius: 5, color: '#0f1117', weight: 1.5, fillColor: '#ff6b35', fillOpacity: 1 }),
+  ]).addTo(map)
+
+  map.fitBounds(L.latLngBounds(latlngs), { padding: [12, 12] })
 }

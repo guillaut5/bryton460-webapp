@@ -1,6 +1,6 @@
 {
   "name": "bryton460-webapp",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Outil HTML pour générer les fichiers natifs du GPS **Bryton 460** à partir d'un fichier GPX. Conçu pour les utilisateurs PC sans l'appli Bryton officielle (Nokia, PC only, etc.).",
   "main": "index.js",
   "scripts": {
@@ -22,7 +22,8 @@
   },
   "homepage": "https://github.com/guillaut5/bryton460-webapp#readme",
   "dependencies": {
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.1",
+    "leaflet": "^1.9.4"
   },
   "devDependencies": {
     "jsdom": "^29.1.1",

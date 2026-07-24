@@ -112,8 +112,8 @@ function loadFile(file) {
       $('s-name').textContent = file.name
       $('s-pts').textContent = pts.length.toLocaleString('fr')
       $('s-dist').textContent = (totalDist(pts)/1000).toFixed(2) + ' km'
-      drawRoutePreview(pts)
       $('routePreviewCard').classList.add('visible')
+      drawRoutePreview(pts)
       if (hasEle) {
         const eles = pts.filter(p => p[2] != null).map(p => p[2])
         const { up, dn } = calcClimb(pts)

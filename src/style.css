@@ -65,7 +65,7 @@ h1{font-size:1.1rem;font-weight:600;letter-spacing:.15em;text-transform:uppercas
 .error.visible{display:block;}
 #routePreviewCard{display:none;}
 #routePreviewCard.visible{display:block;}
-#routePreviewSvg{width:100%;height:200px;display:block;}
+#routePreviewMap{width:100%;height:280px;border-radius:6px;background:var(--bg);}
 #profileCard{display:none;}
 #profileCard.visible{display:block;}
 #profileSvg{width:100%;display:block;cursor:default;}
