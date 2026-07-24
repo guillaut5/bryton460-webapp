@@ -84,6 +84,12 @@
     </label>
   </div>
   <div id="osrmStatus" style="font-size:.72rem;color:var(--accent2);min-height:1.2em;margin-bottom:6px;"></div>
+  <div style="margin:0 0 10px;display:flex;align-items:center;gap:8px;">
+    <input type="checkbox" id="reverseChk" style="width:14px;height:14px;cursor:pointer;accent-color:var(--accent2)">
+    <label for="reverseChk" style="font-size:.78rem;color:var(--muted);cursor:pointer;">
+      Générer aussi le sens inverse <span style="opacity:.5">(fichiers séparés, suffixe _reverse — utile en cas de demi-tour forcé)</span>
+    </label>
+  </div>
   <button class="btn" id="convertBtn" disabled>Convertir</button>
 </div>
 

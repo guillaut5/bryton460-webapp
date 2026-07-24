@@ -30,7 +30,7 @@ const state = {
   gpxName: null,        // nom du fichier sans extension → nom de la route Bryton
 
   // Résultat de la dernière conversion (bouton Convertir)
-  generatedFiles: null, // Map<filename, ArrayBuffer> prête à zipper
+  generatedFiles: null, // [{name, files: Map<filename, ArrayBuffer>}][] — une entrée par sens de parcours (aller [+ retour])
   zipBlob: null,        // Blob du .zip téléchargeable
 
   // Points actifs après simplification + distances cumulées
@@ -186,18 +186,12 @@ $('fetchEleBtn').addEventListener('click', async () => {
 // ── Profil interactions ──────────────────────────────────────────────────────
 initProfileInteractions(getState, setState)
 
-// ── Conversion ───────────────────────────────────────────────────────────────
-$('convertBtn').addEventListener('click', async () => {
-  if (!state.parsedPoints) return
-  clearErr()
-  $('convertBtn').disabled = true; $('convertBtn').textContent = 'Génération…'
-
-  const name = ($('routeName').value.trim() || 'route').replace(/[^a-zA-Z0-9_\-]/g, '_')
-  const simplified = applySimp(state.parsedPoints, { mode: state.simpMode, rdpEps: parseFloat($('rdpSlider').value), step: parseInt($('stepSlider').value), maxPts: parseInt($('maxPts').value)||99999 })
-  const pts = densify(simplified, MAX_TRACK_GAP_M)
+// Construit tous les fichiers d'une route (un sens de parcours) à partir de pts/montées.
+// Réutilisé pour le sens aller et, si demandé, le sens inverse (voir reverseChk).
+async function buildRouteFiles(pts, manualClimbs, useOsrm, osrmStatusEl) {
   const dists = buildDists(pts)
   const autoClimbs = detectClimbs(pts, dists)
-  const climbs = [...autoClimbs, ...state.manualClimbs].sort((a, b) => a.start - b.start)
+  const climbs = [...autoClimbs, ...manualClimbs].sort((a, b) => a.start - b.start)
   const { up, dn } = calcClimb(pts)
   const distKm = (totalDist(pts)/1000).toFixed(2)
   const hasEle = pts.some(p => p[2] != null)
@@ -209,12 +203,11 @@ $('convertBtn').addEventListener('click', async () => {
   const juncBuf  = encodeJunc(null, pts, dists)
 
   let tinfoBuf, tinfoLabel
-  if ($('osrmChk').checked) {
-    const osrmStatus = $('osrmStatus')
-    osrmStatus.textContent = 'OSRM : connexion…'
+  if (useOsrm) {
+    if (osrmStatusEl) osrmStatusEl.textContent = 'OSRM : connexion…'
     try {
       const steps = await matchRoute(pts, dists, (done, total) => {
-        osrmStatus.textContent = `OSRM : chunk ${done}/${total}…`
+        if (osrmStatusEl) osrmStatusEl.textContent = `OSRM : chunk ${done}/${total}…`
       })
       if (steps.length > 0) {
         tinfoBuf  = encodeTinfoNav(steps, Math.round(totalDist(pts)), climbs, pts.length)
@@ -222,65 +215,109 @@ $('convertBtn').addEventListener('click', async () => {
         const rpt = cnt(0xD2)+cnt(0xD3)+cnt(0xD4)
         tinfoLabel = `${steps.length} virages nav`
         if (climbs.length) tinfoLabel += ` · ${climbs.length} montées`
-        osrmStatus.textContent =
+        if (osrmStatusEl) osrmStatusEl.textContent =
           `✓ ${steps.length} virages — ` +
           `↻ droite ${cnt(0x0E)}  ↺ gauche ${cnt(0x0D)}  → tout droit ${cnt(0x02)}` +
           (cnt(0x03)+cnt(0x04) ? `  ± léger ${cnt(0x03)+cnt(0x04)}` : '') +
           (rpt       ? `  ⟳ rond-pt ${rpt}` : '')
       } else {
-        osrmStatus.textContent = `⚠ OSRM : aucune instruction — fallback montées seules`
+        if (osrmStatusEl) osrmStatusEl.textContent = `⚠ OSRM : aucune instruction — fallback montées seules`
         tinfoBuf  = encodeTinfo(climbs)
         tinfoLabel = climbs.length ? climbs.length + ' montées indexées' : 'vide'
       }
     } catch (e) {
-      osrmStatus.textContent = `⚠ OSRM indisponible — fallback montées seules`
+      if (osrmStatusEl) osrmStatusEl.textContent = `⚠ OSRM indisponible — fallback montées seules`
       tinfoBuf  = encodeTinfo(climbs)
       tinfoLabel = climbs.length ? climbs.length + ' montées indexées' : 'vide'
     }
   } else {
-    $('osrmStatus').textContent = ''
+    if (osrmStatusEl) osrmStatusEl.textContent = ''
     tinfoBuf  = encodeTinfo(climbs)
     tinfoLabel = climbs.length ? climbs.length + ' montées indexées' : 'vide'
   }
 
-  const generatedFiles = {
-    [name+'.smy']:   smyBuf,
-    [name+'.tinfo']: tinfoBuf,
-    [name+'.track']: trackBuf,
-    'dupli.track':   trackBuf,
-    'list.junc':     juncBuf,
-    'list2.junc':    juncBuf,
-    'sort1.path':    pathBuf,
+  return { trackBuf, smyBuf, pathBuf, juncBuf, tinfoBuf, tinfoLabel, climbs, up, dn, distKm, hasEle, nPts: pts.length }
+}
+
+// Inverse l'ordre des points et remappe les montées manuelles (startPt/endPt) en conséquence.
+// Tout le reste (pente, D+/D-, virages OSRM, jonctions, montées auto) est recalculé de zéro
+// par buildRouteFiles sur la trace inversée — pas un simple flip d'octets, voir discussion.
+function reverseRoute(pts, manualClimbs) {
+  const n = pts.length
+  return {
+    pts: pts.slice().reverse(),
+    manualClimbs: manualClimbs.map(c => ({ ...c, startPt: n-1-c.endPt, endPt: n-1-c.startPt })),
   }
-  setState({ generatedFiles })
+}
+
+function addRouteToZip(zip, name, r) {
+  zip.file(`${name}.smy`, r.smyBuf)
+  zip.file(`${name}.tinfo`, r.tinfoBuf)
+  zip.file(`${name}.track`, r.trackBuf)
+  const dir = zip.folder(name)
+  dir.file('dupli.track', r.trackBuf)
+  dir.file('list.junc', r.juncBuf)
+  dir.file('list2.junc', r.juncBuf)
+  dir.file('sort1.path', r.pathBuf)
+}
+
+function fileTreeHtml(name, r) {
+  const fmt = b => b < 1024 ? b + ' B' : b < 1048576 ? (b/1024).toFixed(1) + ' KB' : (b/1048576).toFixed(2) + ' MB'
+  const eleStr = r.hasEle ? ` · D+ ${r.up}m D− ${r.dn}m` : ' · sans élévation'
+  return `
+<span class="dir">📁 Tracks\\</span>
+<br><span class="file">  ├ ${name}.smy</span><span class="fsize">${fmt(r.smyBuf.byteLength)}</span>
+<br><span class="file">  ├ ${name}.tinfo</span><span class="fsize">${fmt(r.tinfoBuf.byteLength)} · ${r.tinfoLabel}</span>
+<br><span class="file">  ├ ${name}.track</span><span class="fsize">${fmt(r.trackBuf.byteLength)} · ${r.nPts.toLocaleString('fr')} pts · ${r.distKm} km${eleStr}</span>
+<br><span class="dir">  └ 📁 ${name}\\</span>
+<br><span class="file">        ├ dupli.track</span><span class="fsize">${fmt(r.trackBuf.byteLength)}</span>
+<br><span class="file">        ├ list.junc</span><span class="fsize">${fmt(r.juncBuf.byteLength)} · ${Math.floor(r.juncBuf.byteLength/12)} intersections</span>
+<br><span class="file">        ├ list2.junc</span><span class="fsize">${fmt(r.juncBuf.byteLength)}</span>
+<br><span class="file">        └ sort1.path</span><span class="fsize">${fmt(r.pathBuf.byteLength)}</span>`
+}
+
+// ── Conversion ───────────────────────────────────────────────────────────────
+$('convertBtn').addEventListener('click', async () => {
+  if (!state.parsedPoints) return
+  clearErr()
+  $('convertBtn').disabled = true; $('convertBtn').textContent = 'Génération…'
+
+  const name = ($('routeName').value.trim() || 'route').replace(/[^a-zA-Z0-9_\-]/g, '_')
+  const simplified = applySimp(state.parsedPoints, { mode: state.simpMode, rdpEps: parseFloat($('rdpSlider').value), step: parseInt($('stepSlider').value), maxPts: parseInt($('maxPts').value)||99999 })
+  const pts = densify(simplified, MAX_TRACK_GAP_M)
+  const useOsrm = $('osrmChk').checked
+
+  const fwd = await buildRouteFiles(pts, state.manualClimbs, useOsrm, $('osrmStatus'))
 
   const zip = new JSZip()
-  zip.file(`${name}.smy`, smyBuf)
-  zip.file(`${name}.tinfo`, tinfoBuf)
-  zip.file(`${name}.track`, trackBuf)
-  const dir = zip.folder(name)
-  dir.file('dupli.track', trackBuf)
-  dir.file('list.junc', juncBuf)
-  dir.file('list2.junc', juncBuf)
-  dir.file('sort1.path', pathBuf)
+  addRouteToZip(zip, name, fwd)
+  const routes = [{ name, files: {
+    [name+'.smy']: fwd.smyBuf, [name+'.tinfo']: fwd.tinfoBuf, [name+'.track']: fwd.trackBuf,
+    'dupli.track': fwd.trackBuf, 'list.junc': fwd.juncBuf, 'list2.junc': fwd.juncBuf, 'sort1.path': fwd.pathBuf,
+  }}]
+  let fileTree = fileTreeHtml(name, fwd)
+
+  if ($('reverseChk').checked) {
+    const revName = name + '_reverse'
+    const { pts: revPts, manualClimbs: revManualClimbs } = reverseRoute(pts, state.manualClimbs)
+    const rev = await buildRouteFiles(revPts, revManualClimbs, useOsrm, $('osrmStatus'))
+    addRouteToZip(zip, revName, rev)
+    routes.push({ name: revName, files: {
+      [revName+'.smy']: rev.smyBuf, [revName+'.tinfo']: rev.tinfoBuf, [revName+'.track']: rev.trackBuf,
+      'dupli.track': rev.trackBuf, 'list.junc': rev.juncBuf, 'list2.junc': rev.juncBuf, 'sort1.path': rev.pathBuf,
+    }})
+    fileTree += '<br><br>' + fileTreeHtml(revName, rev)
+  }
+
+  setState({ generatedFiles: routes })
+
   const zipBlob = await zip.generateAsync({ type: 'blob' })
   setState({ zipBlob })
 
-  const fmt = b => b < 1024 ? b + ' B' : b < 1048576 ? (b/1024).toFixed(1) + ' KB' : (b/1048576).toFixed(2) + ' MB'
-  const eleStr = hasEle ? ` · D+ ${up}m D− ${dn}m` : ' · sans élévation'
-  $('fileTree').innerHTML = `
-<span class="dir">📁 Tracks\\</span>
-<br><span class="file">  ├ ${name}.smy</span><span class="fsize">${fmt(smyBuf.byteLength)}</span>
-<br><span class="file">  ├ ${name}.tinfo</span><span class="fsize">${fmt(tinfoBuf.byteLength)} · ${tinfoLabel}</span>
-<br><span class="file">  ├ ${name}.track</span><span class="fsize">${fmt(trackBuf.byteLength)} · ${pts.length.toLocaleString('fr')} pts · ${distKm} km${eleStr}</span>
-<br><span class="dir">  └ 📁 ${name}\\</span>
-<br><span class="file">        ├ dupli.track</span><span class="fsize">${fmt(trackBuf.byteLength)}</span>
-<br><span class="file">        ├ list.junc</span><span class="fsize">${fmt(juncBuf.byteLength)} · ${Math.floor(juncBuf.byteLength/12)} intersections</span>
-<br><span class="file">        ├ list2.junc</span><span class="fsize">${fmt(juncBuf.byteLength)}</span>
-<br><span class="file">        └ sort1.path</span><span class="fsize">${fmt(pathBuf.byteLength)}</span>`
+  $('fileTree').innerHTML = fileTree
 
-  if (climbs.length) {
-    $('climbList').innerHTML = climbs.map((c, i) => `
+  if (fwd.climbs.length) {
+    $('climbList').innerHTML = fwd.climbs.map((c, i) => `
       <div class="climb-item">
         <span>#${i+1}</span><strong>${(c.start/1000).toFixed(1)} km</strong>
         <span>${(c.length/1000).toFixed(1)} km</span><strong>D+ ${c.gain.toFixed(0)} m</strong>
@@ -310,18 +347,20 @@ $('dlBtn').addEventListener('click', () => {
 
 // ── Transfert USB ────────────────────────────────────────────────────────────
 $('transferBtn').addEventListener('click', async () => {
-  if (!state.generatedFiles) return
-  const name = ($('routeName').value.trim() || 'route').replace(/[^a-zA-Z0-9_\-]/g, '_')
+  if (!state.generatedFiles?.length) return
   const st = $('transferStatus')
   st.className = 'transfer-status'; st.textContent = ''
   $('transferBtn').disabled = true; $('transferBtn').textContent = '⏳ Sélectionner le lecteur Bryton…'
   try {
     const rootDir = await findBrytonDrive()
     if (!rootDir) { $('transferBtn').textContent = '⚡ Copier directement sur le Bryton (USB)'; $('transferBtn').disabled = false; return }
-    $('transferBtn').textContent = '⏳ Copie en cours…'
-    await writeFilesToDir(rootDir, name, state.generatedFiles)
+    for (const { name, files } of state.generatedFiles) {
+      $('transferBtn').textContent = `⏳ Copie de "${name}"…`
+      await writeFilesToDir(rootDir, name, files)
+    }
     st.className = 'transfer-status ok'
-    st.textContent = `✓ Route "${name}" copiée dans Tracks\\ — débrancher proprement puis Menu → Itinéraires.`
+    const names = state.generatedFiles.map(r => `"${r.name}"`).join(' et ')
+    st.textContent = `✓ Route${state.generatedFiles.length > 1 ? 's' : ''} ${names} copiée${state.generatedFiles.length > 1 ? 's' : ''} dans Tracks\\ — débrancher proprement puis Menu → Itinéraires.`
   } catch (e) {
     st.className = 'transfer-status err'; st.textContent = 'Erreur : ' + e.message
   }
