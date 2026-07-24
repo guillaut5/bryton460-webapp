@@ -197,7 +197,8 @@ Offset  Taille  Type       Contenu
 12      4       int32      lon_max × 1 000 000
 16      4       int32      lon_min × 1 000 000
 20      4       int32      distance totale (m)
-24      4       int32      inconnu (= 1 638 732 dans tous les fichiers officiels)
+24      4       int32      inconnu (variable par route : 1 638 732 sur 100K, 2 490 581 sur
+                           une autre trace officielle testée — pas une constante)
 28      32      —          zéros
 60      4       int32      D+ (m)
 64      4       int32      D− = toujours 0 (l'appli officielle ne remplit pas ce champ)
@@ -436,12 +437,12 @@ sur une trace réelle de 100 km / 15 444 points.
 |---|---|---|
 | `.track` lat/lon/ele | ✅ Correct | Encodage int32/uint16 LE validé |
 | `.track` byte 10 pente | ✅ Correct | Écart ≤ 1% vs officiel (fenêtre 200m) |
-| `.smy` | ✅ Correct | bbox, distance, D+ ok — D- = 0 comme l'officiel |
+| `.smy` | 🔶 Approché | bbox, distance ok — D- = 0 comme l'officiel ; **D+ surestimé** (calcul non lissé, ~33% de plus que l'officiel mesuré sur une trace réelle avec la même donnée d'altitude source) |
 | `.tinfo` format A | ✅ Correct | Flags 0xBE/0xBF + ptIdx sur 16 bits |
-| `.tinfo` format B nav | 🔶 Approché | Structure 44B + codes direction confirmés via voiceTrip ; échantillonnage OSRM ancré sur les vrais virages GPS pour éviter les rues erronées ; un éventuel décalage ptIdx/code entre intersections n'est pas encore tranché |
+| `.tinfo` format B nav | 🔶 Approché | Structure 44B + codes direction confirmés via voiceTrip ; échantillonnage OSRM ancré sur les vrais virages GPS + garde-fou contre les matchs à plus de 50m du tracé réel (rejetés) ; un éventuel décalage ptIdx/code entre intersections n'est pas encore tranché ; un code `0x64` (POI/waypoint GPX) a été repéré dans un fichier officiel mais n'est pas encore décodé/implémenté |
 | `.tinfo` nom de rue | 🔶 Approché | Vient de `step.name` OSRM (tag OSM `name` de la route matchée) — même fiabilité que le code de direction, aucune source séparée. Souvent vide sur route non taggée : 45-54% des virages sans nom mesuré sur deux traces gravel réelles |
 | `.climb` structure | ✅ Correct | 4 × float32 : start_m, longueur_m, D+_m, grade |
-| `sort1.path` | ✅ Correct | Segments par tuile OSM z=13 — format validé |
-| `.climb` détection | 🔶 Approché | 1re montée exacte, autres ≈ ±2 km vs officiel |
-| `.track` densité de points | ✅ Corrigé | Écart max garanti de 30m entre points consécutifs (`densify`) — certains GPX (export planificateur type Komoot) ont des trous natifs de 500m+ |
-| `list.junc` | 🔶 Approché | Détection par changement d'angle GPS (Overpass jamais branché en prod, et service actuellement injoignable) |
+| `sort1.path` | ✅ Correct | Segments par tuile OSM z=13 — format validé, structure identique à l'officiel vérifiée sur plusieurs traces |
+| `.climb` détection | 🔶 Approché | 1re montée exacte, autres ≈ ±2 km vs officiel sur la trace 100K ; a raté la totalité des montées détectées par l'officiel sur une autre trace testée |
+| `.track` densité de points | ✅ Corrigé | Écart max garanti de 30m entre points consécutifs (`densify`) — certains GPX (export planificateur type Komoot) ont des trous natifs de 500m+, y compris dans les fichiers générés par l'appli officielle elle-même |
+| `list.junc` | 🔶 Approché | Détection par changement d'angle GPS (Overpass jamais branché en prod, et service actuellement injoignable) — environ la moitié des intersections détectées par l'officiel sur une trace de comparaison |
