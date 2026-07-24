@@ -197,8 +197,9 @@ Offset  Taille  Type       Contenu
 12      4       int32      lon_max × 1 000 000
 16      4       int32      lon_min × 1 000 000
 20      4       int32      distance totale (m)
-24      4       int32      inconnu (variable par route : 1 638 732 sur 100K, 2 490 581 sur
-                           une autre trace officielle testée — pas une constante)
+24      4       int32      inconnu (variable : 1 638 732 sur 100K, 2 490 581 sur une autre
+                           trace officielle — pas une constante ; hypothèse ID téléphone/appli
+                           vs checksum contenu, pas encore distinguable — voir CLAUDE.md)
 28      32      —          zéros
 60      4       int32      D+ (m)
 64      4       int32      D− = toujours 0 (l'appli officielle ne remplit pas ce champ)

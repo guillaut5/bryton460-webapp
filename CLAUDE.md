@@ -26,7 +26,7 @@ L'utilisateur est sur PC/Nokia, sans l'appli Bryton officielle.
 | 12 | int32 | lon_max × 1e6 |
 | 16 | int32 | lon_min × 1e6 |
 | 20 | int32 | distance (m) |
-| 24 | int32 | **inconnu** — variable par route, pas une constante : 1 638 732 sur 100K officiel, 2 490 581 sur `ceceles` officiel (2026-07-24). Pas de corrélation trouvée avec nb_points/distance/D+ |
+| 24 | int32 | **inconnu** — variable, pas une constante : 1 638 732 sur 100K officiel, 2 490 581 sur `ceceles` officiel (2026-07-24). Pas de corrélation avec nb_points/distance/D+/durée GPX (timestamp testé et écarté). Hypothèse actuelle : ID lié au téléphone/à l'installation de l'appli plutôt qu'un checksum du contenu — **mais pas encore distinguable**, les deux échantillons connus viennent de deux téléphones différents ET de routes différentes. Test décisif pour la prochaine fois : générer 2 routes différentes depuis le **même** téléphone/appli — valeur identique → ID appareil ; valeur différente → checksum/ID par export |
 | 60 | int32 | D+ (m) |
 | 64 | int32 | D− = **toujours 0** dans l'officiel |
 
