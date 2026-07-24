@@ -177,11 +177,27 @@ avec aller-retour (un segment de tuile de seulement 6 points). Le deuxième cas 
 rapporté n'était pas un aller-retour et s'explique entièrement par la cause 2 — donc ne pas
 prioriser cette piste tant que la cause 2 n'a pas été validée sur device et exclue.
 
+**Cas non résolu (2026-07-24) — demi-tour = perte totale du suivi.** Sur une trace avec fix
+rue fantôme + densify déjà appliqués, tout fonctionnait bien jusqu'à un point où le chemin
+était interdit (payant l'été, Lac de Cécélès) → demi-tour de l'utilisateur. En repartant en
+sens inverse sur exactement la même trace enregistrée : "hors itinéraire" immédiat, plus
+d'affichage de la trace. Reset de l'itinéraire : même problème. Tentative de rejoindre la
+suite du parcours plus loin (en sautant la portion interdite) : toujours "hors itinéraire",
+alors qu'à nouveau exactement sur la trace enregistrée. Vérifié et écarté : `.track`/
+`sort1.path`/`.tinfo` sont tous propres à cet endroit précis (aucune anomalie structurelle,
+les 4 virages du coin sont matchés par OSRM à 0m d'écart). Hypothèse actuelle (non
+confirmée) : le firmware garderait un pointeur de progression qui n'avance que dans un sens
+et ne cherche la position que dans une fenêtre proche du dernier point connu — cohérent avec
+la philosophie "device bas de gamme, calcul minimal" déjà établie, mais pas vérifié sur
+device. Test proposé : demi-tour volontaire sur une portion qui marche bien, loin de toute
+contrainte de terrain, pour confirmer si n'importe quel demi-tour casse le suivi.
+
 **Comment investiguer un nouveau rapport "hors itinéraire" :** vérifier dans l'ordre (1) trous
 d'altitude à 0m, (2) écart entre points consécutifs du `.track` (`hav()` point à point,
-chercher les gaps >100m), (3) segments `sort1.path` anormalement courts. Toujours vérifier
-l'origine du GPX source (export planificateur vs enregistrement GPS réel) — comportement très
-différent en densité de points.
+chercher les gaps >100m), (3) segments `sort1.path` anormalement courts, (4) si le rapport
+implique un demi-tour ou un raccourci hors trace, voir le cas non résolu ci-dessus. Toujours
+vérifier l'origine du GPX source (export planificateur vs enregistrement GPS réel) —
+comportement très différent en densité de points.
 
 ---
 
@@ -194,6 +210,16 @@ voisine — reproduit concrètement ("Rue Marcellin Albert" insérée à tort). 
 les points où la trace GPS change vraiment de direction (`detectTurnIdxs`, geo.js) comme
 ancrages supplémentaires à l'échantillonnage uniforme. Coût mesuré : ~1.5x plus de requêtes
 OSRM (donc plus lent à générer), zéro nouvelle dépendance externe.
+
+**Garde-fou match trop éloigné (corrigé, 2026-07-24).** Sur les tronçons hors réseau routable
+(chemins/pistes), OSRM (profil driving) peut renvoyer un match sur la route bitumée la plus
+proche plutôt que sur le vrai chemin — mesuré jusqu'à **926m** d'écart sur une trace gravel
+réelle (`grvl_dp_zoo_ceceles`), alors que les bons matchs sont à 0m (le `.track` est densifié
+à 30m max, cf. `densify()` — un bon match doit donc toujours être tout proche). `matchRoute()`
+rejette maintenant les virages dont le point matché est à plus de 50m (`MAX_MATCH_DIST_M`,
+osrm.js) du point réel le plus proche. ~1/3 des virages rejetés sur la trace de test. Trouvé
+en creusant un rapport terrain différent (voir section "hors itinéraire" — au final sans
+rapport avec ce rapport précis, mais un vrai nettoyage de bruit indépendant.)
 
 **Nom de rue** : vient de `step.name` renvoyé directement par OSRM (lui-même le tag OSM
 `name` de la way matchée) — aucune source séparée, pas de géocodage/reverse-geocoding à part.
@@ -255,7 +281,11 @@ fichier mentionné dans une session précédente y est toujours présent.
 
 ## Versioning
 
-- Fichier de travail v0.6 : `src/` (modules ES) + `index.html` → `npm run build` → `dist/index.html`
+- Fichier de travail v0.7 : `src/` (modules ES) + `index.html` → `npm run build` → `dist/index.html`
 - Archive proto : `proto_html/bryton.html` (v0.2), `proto_html/bryton_v0.1.html` (ne pas modifier)
-- Tags git : `v0.1`, `v0.2`, `v0.4`, `v0.5`, `v0.6`
+- Tags git : `v0.1`, `v0.2`, `v0.4`, `v0.5`, `v0.6`, `v0.7`
 - v0.6 = fix rue fantôme (`3e0f553`) + fix densify trous >30m / traces Komoot (`584f3ab`)
+- v0.7 = garde-fou virages OSRM mal matchés >50m (`412ee52`) + version UI lue depuis
+  `package.json` au lieu d'être écrite en dur dans `index.html`
+- Numéro de version affiché dans l'UI : injecté au build par Vite (`__APP_VERSION__`,
+  vite.config.js, lit `package.json`) — ne jamais l'écrire en dur dans `index.html`

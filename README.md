@@ -76,6 +76,18 @@ Ouvre `http://localhost:5173` avec hot reload.
 
 ## Release notes
 
+### v0.7 — 2026-07-24
+
+- **Garde-fou sur les virages mal matchés par OSRM** — sur les tronçons hors réseau routable
+  (chemins/pistes), OSRM (profil driving) peut renvoyer un match sur la route bitumée la plus
+  proche plutôt que sur le vrai chemin — mesuré jusqu'à 926m d'écart sur une trace gravel
+  réelle. `matchRoute()` rejette maintenant les virages matchés à plus de 50m du point réel le
+  plus proche (le `.track` étant densifié à 30m max, un bon match est forcément tout proche).
+  ~1/3 des virages rejetés sur la trace de test — du bruit réel en moins.
+- **Version affichée dans l'UI lue depuis `package.json`** — n'est plus écrite en dur dans
+  `index.html` (source de désynchronisation trouvée en marge de cette session : la version
+  affichée était restée bloquée sur "v0.4" pendant plusieurs mises à jour).
+
 ### v0.6 — 2026-07-21
 
 - **Fix "rue fantôme" dans l'échantillonnage OSRM** — `matchRoute()` n'envoyait un point à
