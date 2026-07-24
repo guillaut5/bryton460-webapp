@@ -324,13 +324,14 @@ fichier mentionné dans une session précédente y est toujours présent.
 
 ## Versioning
 
-- Fichier de travail v0.8 : `src/` (modules ES) + `index.html` → `npm run build` → `dist/index.html`
+- Fichier de travail v0.9 : `src/` (modules ES) + `index.html` → `npm run build` → `dist/index.html`
 - Archive proto : `proto_html/bryton.html` (v0.2), `proto_html/bryton_v0.1.html` (ne pas modifier)
-- Tags git : `v0.1`, `v0.2`, `v0.4`, `v0.5`, `v0.6`, `v0.7`, `v0.8`
+- Tags git : `v0.1`, `v0.2`, `v0.4`, `v0.5`, `v0.6`, `v0.7`, `v0.8`, `v0.9`
 - v0.6 = fix rue fantôme (`3e0f553`) + fix densify trous >30m / traces Komoot (`584f3ab`)
 - v0.7 = garde-fou virages OSRM mal matchés >50m (`412ee52`) + version UI lue depuis
   `package.json` au lieu d'être écrite en dur dans `index.html`
 - v0.8 = génération du sens inverse de la route (`c4eb3da`), suffixe `_reverse` — contournement
   pratique pour le cas du demi-tour forcé, pas un fix du device lui-même
+- v0.9 = aperçu 2D du tracé (SVG, sans tuiles) affiché dès le chargement du GPX
 - Numéro de version affiché dans l'UI : injecté au build par Vite (`__APP_VERSION__`,
   vite.config.js, lit `package.json`) — ne jamais l'écrire en dur dans `index.html`

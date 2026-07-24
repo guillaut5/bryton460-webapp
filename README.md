@@ -76,6 +76,15 @@ Ouvre `http://localhost:5173` avec hot reload.
 
 ## Release notes
 
+### v0.9 — 2026-07-24
+
+- **Aperçu 2D du tracé** — nouvelle carte "Aperçu du tracé" affichée dès le chargement du GPX
+  (avant même la conversion), sous forme de tracé SVG pur — pas de tuiles/carte externe,
+  cohérent avec le reste de l'appli (fichier unique, utilisable hors-ligne). Longitude
+  corrigée par cos(latitude) pour ne pas déformer la forme réelle du parcours. Point de départ
+  (blanc) et d'arrivée (orange) marqués. Testé dans un vrai navigateur sur plusieurs traces
+  réelles.
+
 ### v0.8 — 2026-07-24
 
 - **Génération du sens inverse** — nouvelle case à cocher qui génère, en plus du fichier

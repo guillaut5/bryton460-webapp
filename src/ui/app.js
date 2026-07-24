@@ -12,6 +12,7 @@ import { encodeSortPath } from '../encoders/path.js'
 import { fetchElevations } from '../api/elevation.js'
 import { supportsFS, findBrytonDrive, writeFilesToDir } from './transfer.js'
 import { drawProfile, updateManualClimbList, initProfileInteractions } from './profile.js'
+import { drawRoutePreview } from './routePreview.js'
 
 const $ = id => document.getElementById(id)
 
@@ -90,6 +91,7 @@ function loadFile(file) {
   clearErr()
   $('stats').classList.remove('visible')
   $('profileCard').classList.remove('visible')
+  $('routePreviewCard').classList.remove('visible')
   $('manualClimbList').innerHTML = ''
   $('profileHint').textContent = ''
   $('addClimbBtn').textContent = '＋ Montée'
@@ -110,6 +112,8 @@ function loadFile(file) {
       $('s-name').textContent = file.name
       $('s-pts').textContent = pts.length.toLocaleString('fr')
       $('s-dist').textContent = (totalDist(pts)/1000).toFixed(2) + ' km'
+      drawRoutePreview(pts)
+      $('routePreviewCard').classList.add('visible')
       if (hasEle) {
         const eles = pts.filter(p => p[2] != null).map(p => p[2])
         const { up, dn } = calcClimb(pts)
