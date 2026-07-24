@@ -76,7 +76,7 @@ Ouvre `http://localhost:5173` avec hot reload.
 
 ## Release notes
 
-### Non publié (depuis v0.7)
+### v0.8 — 2026-07-24
 
 - **Génération du sens inverse** — nouvelle case à cocher qui génère, en plus du fichier
   normal, un second jeu complet (`<nom>_reverse.*`) à partir de la trace retournée. Pente,
